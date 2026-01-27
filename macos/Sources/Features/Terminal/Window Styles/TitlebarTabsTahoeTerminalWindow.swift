@@ -273,6 +273,11 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         case .hidden: 0
         case .visible: windowControlButtonsWidth
         }
+        let tabBarView = self.tabBarView
+        let originalPostsFrameChangedNotifications = tabBarView?.postsFrameChangedNotifications ?? false
+        tabBarView?.postsFrameChangedNotifications = false
+        defer { tabBarView?.postsFrameChangedNotifications = originalPostsFrameChangedNotifications }
+
         tabBarLeftConstraint?.constant = max(windowButtonsPadding, worktrunkSidebarWidth)
     }
 

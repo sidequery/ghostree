@@ -1,11 +1,6 @@
 import AppKit
 import SwiftUI
 
-enum SidebarSelection: Hashable {
-    case worktree(path: String)
-    case session(id: String)
-}
-
 struct WorktrunkSidebarView: View {
     @ObservedObject var store: WorktrunkStore
     @ObservedObject var sidebarState: WorktrunkSidebarState
@@ -13,7 +8,6 @@ struct WorktrunkSidebarView: View {
     var resumeSession: ((AISession) -> Void)?
 
     @State private var createSheetRepo: WorktrunkStore.Repository?
-    @State private var selection: SidebarSelection?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,7 +53,11 @@ struct WorktrunkSidebarView: View {
     }
 
     private var list: some View {
-        List(selection: $selection) {
+        let selection = Binding(
+            get: { sidebarState.selection },
+            set: { sidebarState.selection = $0 }
+        )
+        return List(selection: selection) {
             // Small loading indicator at top - doesn't block anything
             if store.isRefreshing {
                 HStack(spacing: 6) {

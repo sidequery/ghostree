@@ -14,6 +14,8 @@ struct WorktrunkSidebarView: View {
 
     @State private var createSheetRepo: WorktrunkStore.Repository?
     @State private var selection: SidebarSelection?
+    @State private var removeRepoConfirm: WorktrunkStore.Repository?
+    @State private var removeWorktreeConfirm: WorktrunkStore.Worktree?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,6 +57,36 @@ struct WorktrunkSidebarView: View {
                 sidebarState.expandedRepoIDs = Set(store.repositories.map(\.id))
             }
             Task { await store.refreshAll() }
+        }
+        .alert(
+            "Remove Repository?",
+            isPresented: Binding(
+                get: { removeRepoConfirm != nil },
+                set: { if !$0 { removeRepoConfirm = nil } }
+            ),
+            presenting: removeRepoConfirm
+        ) { repo in
+            Button("Remove", role: .destructive) {
+                store.removeRepository(id: repo.id)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { repo in
+            Text("Remove \(repo.name) from the sidebar. Nothing will be deleted from disk.")
+        }
+        .alert(
+            "Remove Worktree?",
+            isPresented: Binding(
+                get: { removeWorktreeConfirm != nil },
+                set: { if !$0 { removeWorktreeConfirm = nil } }
+            ),
+            presenting: removeWorktreeConfirm
+        ) { wt in
+            Button("Remove", role: .destructive) {
+                Task { _ = await store.removeWorktree(repoID: wt.repositoryID, branch: wt.branch) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { wt in
+            Text("This runs `wt remove \(wt.branch)` and deletes the worktree directory. The branch may be deleted if it's merged.")
         }
     }
 
@@ -138,6 +170,15 @@ struct WorktrunkSidebarView: View {
                                 }
                                 .contentShape(Rectangle())
                                 .help(wt.path)
+                                .contextMenu {
+                                    Button("Remove Worktree…") {
+                                        removeWorktreeConfirm = wt
+                                    }
+                                    .disabled(wt.isMain)
+                                    Button("Reveal in Finder") {
+                                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: wt.path)])
+                                    }
+                                }
                             }
                             .tag(SidebarSelection.worktree(path: wt.path))
                         }
@@ -171,13 +212,13 @@ struct WorktrunkSidebarView: View {
                         .help("Create worktree")
                     }
                     .contentShape(Rectangle())
-                }
-                .contextMenu {
-                    Button("Remove") {
-                        store.removeRepository(id: repo.id)
-                    }
-                    Button("Reveal in Finder") {
-                        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: repo.path)])
+                    .contextMenu {
+                        Button("Remove Repository…") {
+                            removeRepoConfirm = repo
+                        }
+                        Button("Reveal in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: repo.path)])
+                        }
                     }
                 }
             }

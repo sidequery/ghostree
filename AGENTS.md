@@ -52,3 +52,7 @@ A file for [guiding coding agents](https://agents.md/).
 - Never create an issue.
 - NEVER EVER EVER EVER EVER EVER open a PR against `ghostty-org/ghostty` (upstream), under any circumstances.
 - If a PR is explicitly requested, it must target `sidequery/ghostree` only, never upstream.
+- Before creating any PR, verify: `gh repo set-default --view` must show `sidequery/ghostree`.
+  If it does not, run `gh repo set-default sidequery/ghostree` first.
+- Always use `--repo sidequery/ghostree` flag with `gh pr create` as a safeguard.
+- NEVER use `--repo ghostty-org/ghostty` or any upstream reference in `gh pr` commands.

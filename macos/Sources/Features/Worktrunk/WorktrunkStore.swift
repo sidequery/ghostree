@@ -4,12 +4,14 @@ enum SessionSource: String, Codable {
     case claude
     case codex
     case opencode
+    case agent
 
     var icon: String {
         switch self {
         case .claude: return "terminal"
         case .codex: return "sparkles"
         case .opencode: return "terminal"
+        case .agent: return "cursorarrow.rays"
         }
     }
 
@@ -18,6 +20,7 @@ enum SessionSource: String, Codable {
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
+        case .agent: return "Cursor Agent"
         }
     }
 }
@@ -121,11 +124,22 @@ struct OpenCodeIndexEntry: Codable {
     var worktreePath: String?
 }
 
+struct CursorAgentIndexEntry: Codable {
+    var sessionId: String
+    var projectHash: String
+    var chatName: String?
+    var worktreePath: String
+    var timestamp: Date
+    var dbMtime: TimeInterval
+    var dbSize: Int64
+}
+
 struct SessionIndex: Codable {
     var version: Int = 1
     var claude: [String: SessionIndexEntry] = [:]
     var codex: [String: SessionIndexEntry] = [:]
     var opencode: [String: OpenCodeIndexEntry] = [:]
+    var cursorAgent: [String: CursorAgentIndexEntry] = [:]
 }
 
 final class SessionIndexManager {
@@ -1720,6 +1734,88 @@ final class WorktrunkStore: ObservableObject {
 
         index.opencode = index.opencode.filter { seenOpenCodePaths.contains($0.key) }
 
+        // Scan Cursor Agent sessions (~/.cursor/chats/<md5(worktree_path)>/<uuid>/store.db)
+        // Project hash = MD5 of the workspace path, so we compute hashes for all
+        // known worktree paths and only look at matching directories.
+        var seenAgentPaths = Set<String>()
+        let cursorChatsDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cursor/chats")
+
+        if FileManager.default.fileExists(atPath: cursorChatsDir.path) {
+            var hashToWorktree: [String: String] = [:]
+            for path in validWorktreePaths {
+                let hash = CursorAgentDB.projectHash(for: path)
+                hashToWorktree[hash] = path
+            }
+
+            for (projectHash, worktreePath) in hashToWorktree {
+                let projectDir = cursorChatsDir.appendingPathComponent(projectHash, isDirectory: true)
+                guard FileManager.default.fileExists(atPath: projectDir.path) else { continue }
+
+                let sessionDirs = (try? FileManager.default.contentsOfDirectory(
+                    at: projectDir,
+                    includingPropertiesForKeys: [.isDirectoryKey]
+                ))?.filter {
+                    (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                } ?? []
+
+                for sessionDir in sessionDirs {
+                    let dbURL = sessionDir.appendingPathComponent("store.db")
+                    guard FileManager.default.fileExists(atPath: dbURL.path) else { continue }
+                    let sessionId = sessionDir.lastPathComponent
+                    let indexKey = dbURL.path
+                    seenAgentPaths.insert(indexKey)
+
+                    guard let attrs = fileAttributes(for: dbURL) else { continue }
+                    let cached = index.cursorAgent[indexKey]
+
+                    if let cached,
+                       cached.dbMtime == attrs.mtime,
+                       cached.dbSize == attrs.size {
+                        let session = AISession(
+                            id: cached.sessionId,
+                            source: .agent,
+                            worktreePath: worktreePath,
+                            cwd: worktreePath,
+                            timestamp: cached.timestamp,
+                            snippet: cached.chatName,
+                            sourcePath: dbURL.path,
+                            messageCount: 0
+                        )
+                        noteSession(session, worktreePath: worktreePath)
+                        if cached.worktreePath != worktreePath {
+                            var updated = cached
+                            updated.worktreePath = worktreePath
+                            index.cursorAgent[indexKey] = updated
+                        }
+                        continue
+                    }
+
+                    if let parsed = parseCursorAgentSession(dbURL: dbURL, sessionId: sessionId) {
+                        var session = parsed
+                        session.worktreePath = worktreePath
+                        session.cwd = worktreePath
+                        noteSession(session, worktreePath: worktreePath)
+                        index.cursorAgent[indexKey] = CursorAgentIndexEntry(
+                            sessionId: sessionId,
+                            projectHash: projectHash,
+                            chatName: parsed.snippet,
+                            worktreePath: worktreePath,
+                            timestamp: parsed.timestamp,
+                            dbMtime: attrs.mtime,
+                            dbSize: attrs.size
+                        )
+                    } else {
+                        index.cursorAgent[indexKey] = nil
+                    }
+                }
+            }
+        } else {
+            index.cursorAgent = [:]
+        }
+
+        index.cursorAgent = index.cursorAgent.filter { seenAgentPaths.contains($0.key) }
+
         // Final sort and single publish
         sortDirtySessions()
 
@@ -1971,6 +2067,34 @@ final class WorktrunkStore: ObservableObject {
             snippet: snippet,
             sourcePath: url.path,
             messageCount: messageCount
+        )
+    }
+
+    // MARK: - Cursor Agent Sessions
+
+    private func parseCursorAgentSession(dbURL: URL, sessionId: String) -> AISession? {
+        guard let db = try? CursorAgentDB(path: dbURL.path) else { return nil }
+        defer { db.close() }
+
+        guard let meta = db.readMeta() else { return nil }
+        let createdAt = meta.createdAt.map { Date(timeIntervalSince1970: $0 / 1000.0) }
+
+        let dbModDate: Date? = {
+            guard let attrs = try? FileManager.default.attributesOfItem(atPath: dbURL.path),
+                  let mdate = attrs[.modificationDate] as? Date else { return nil }
+            return mdate
+        }()
+        let timestamp = dbModDate ?? createdAt ?? Date.distantPast
+
+        return AISession(
+            id: sessionId,
+            source: .agent,
+            worktreePath: "",
+            cwd: "",
+            timestamp: timestamp,
+            snippet: meta.name,
+            sourcePath: dbURL.path,
+            messageCount: 0
         )
     }
 

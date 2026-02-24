@@ -209,6 +209,7 @@ function __ghostty_precmd() {
 
     claude() { command "$GHOSTREE_AGENT_BIN_DIR/claude" "$@"; }
     codex() { command "$GHOSTREE_AGENT_BIN_DIR/codex" "$@"; }
+    agent() { command "$GHOSTREE_AGENT_BIN_DIR/agent" "$@"; }
   fi
 
   if test "$_ghostty_executing" != "0"; then

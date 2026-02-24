@@ -5,6 +5,7 @@ enum WorktrunkAgent: String, CaseIterable, Identifiable {
     case claude
     case codex
     case opencode
+    case agent
 
     var id: String { rawValue }
 
@@ -13,6 +14,7 @@ enum WorktrunkAgent: String, CaseIterable, Identifiable {
         case .claude: return "Claude Code"
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
+        case .agent: return "Cursor Agent"
         }
     }
 
@@ -21,6 +23,7 @@ enum WorktrunkAgent: String, CaseIterable, Identifiable {
         case .claude: return "claude"
         case .codex: return "codex"
         case .opencode: return "opencode"
+        case .agent: return "agent"
         }
     }
 
@@ -76,6 +79,7 @@ enum WorktrunkDefaultAction: String, CaseIterable, Identifiable {
     case claude
     case codex
     case opencode
+    case agent
 
     var id: String { rawValue }
 
@@ -85,6 +89,7 @@ enum WorktrunkDefaultAction: String, CaseIterable, Identifiable {
         case .claude: return "Claude Code"
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
+        case .agent: return "Cursor Agent"
         }
     }
 
@@ -94,6 +99,7 @@ enum WorktrunkDefaultAction: String, CaseIterable, Identifiable {
         case .claude: return .claude
         case .codex: return .codex
         case .opencode: return .opencode
+        case .agent: return .agent
         }
     }
 

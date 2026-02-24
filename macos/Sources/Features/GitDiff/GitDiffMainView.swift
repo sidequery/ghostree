@@ -4,10 +4,10 @@ import SwiftUI
 struct GitDiffMainView: View {
     @ObservedObject var state: GitDiffSidebarState
 
-    @State private var hoveredLineID: String? = nil
-    @State private var composer: ComposerLocation? = nil
+    @State private var hoveredLineID: String?
+    @State private var composer: ComposerLocation?
     @State private var composerText: String = ""
-    @State private var lastVisibleFileID: String? = nil
+    @State private var lastVisibleFileID: String?
 
     var body: some View {
         content
@@ -60,11 +60,11 @@ private struct DiffDocumentView: View {
     private let lineNumberWidth: CGFloat = 36
     private let changeMarkerWidth: CGFloat = 3
     @State private var highlightCache = DiffHighlightCache()
-    @State private var headerOffsetsUpdateTask: Task<Void, Never>? = nil
+    @State private var headerOffsetsUpdateTask: Task<Void, Never>?
     @State private var latestHeaderOffsets: [String: CGFloat] = [:]
-    @State private var scrollTask: Task<Void, Never>? = nil
+    @State private var scrollTask: Task<Void, Never>?
     @State private var isScrolling: Bool = false
-    @State private var scrollIdleTask: Task<Void, Never>? = nil
+    @State private var scrollIdleTask: Task<Void, Never>?
 
     private let initialRenderedFiles: Int = 12
     private let renderStep: Int = 8
@@ -416,7 +416,7 @@ private struct DiffLineRow: View {
         let canHighlight: Bool
     }
 
-    @State private var renderedText: AttributedString? = nil
+    @State private var renderedText: AttributedString?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

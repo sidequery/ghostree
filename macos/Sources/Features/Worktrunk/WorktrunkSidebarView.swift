@@ -1100,7 +1100,7 @@ private struct CreateWorktreeSheet: View {
     @State private var base: String = ""
     @State private var createBranch: Bool = true
     @State private var isWorking: Bool = false
-    @State private var errorText: String? = nil
+    @State private var errorText: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

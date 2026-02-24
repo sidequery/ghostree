@@ -41,7 +41,7 @@ final class GitDiffSidebarState: ObservableObject {
 
     @Published var isVisible: Bool = false
     @Published var panelWidth: CGFloat = 320
-    @Published var repoRoot: String? = nil
+    @Published var repoRoot: String?
     @Published var entries: [GitDiffEntry] = []
     @Published var source: GitDiffSource = .workingTree {
         didSet {
@@ -53,36 +53,36 @@ final class GitDiffSidebarState: ObservableObject {
             handleScopeChange()
         }
     }
-    @Published var selectedPath: String? = nil
-    @Published var currentVisiblePath: String? = nil
-    @Published var scrollRequest: GitDiffScrollRequest? = nil
-    @Published var errorMessage: String? = nil
+    @Published var selectedPath: String?
+    @Published var currentVisiblePath: String?
+    @Published var scrollRequest: GitDiffScrollRequest?
+    @Published var errorMessage: String?
     @Published var isLoading: Bool = false
     @Published var diffText: String = ""
-    @Published var diffError: String? = nil
+    @Published var diffError: String?
     @Published var isDiffLoading: Bool = false
-    @Published var document: DiffDocument? = nil
+    @Published var document: DiffDocument?
     @Published var commentsEnabled: Bool = false
     @Published var reviewDraft: DiffReviewDraft = .empty
     @Published var collapsedFileIDs: Set<String> = []
     @Published var renderedFileCount: Int = 0
-    @Published var pullRequest: PRStatus? = nil
-    @Published var selectedWorktreePath: String? = nil
+    @Published var pullRequest: PRStatus?
+    @Published var selectedWorktreePath: String?
     private var diffRequestID: Int = 0
     private var scrollNonce: Int = 0
 
     private let store = GitDiffStore()
-    private var lastCwd: URL? = nil
+    private var lastCwd: URL?
     private let draftStore = DiffReviewDraftStore()
-    private var refreshTask: Task<Void, Never>? = nil
-    private var pendingRefresh: RefreshRequest? = nil
+    private var refreshTask: Task<Void, Never>?
+    private var pendingRefresh: RefreshRequest?
     private var lastRefreshAt: Date = .distantPast
-    private var pollTask: Task<Void, Never>? = nil
+    private var pollTask: Task<Void, Never>?
     private let watchQueue = DispatchQueue(label: "gitdiff.watch", qos: .utility)
     private var watchSources: [DispatchSourceFileSystemObject] = []
     private var watchFileDescriptors: [Int32] = []
     private var watchedPaths: [String] = []
-    private var watchedWorktreePath: String? = nil
+    private var watchedWorktreePath: String?
     private var ignoreWatchEventsUntil: Date = .distantPast
 
     var allCount: Int {

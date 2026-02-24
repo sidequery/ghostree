@@ -13,7 +13,7 @@ enum DiffParser {
         var files: [DiffFile] = []
         files.reserveCapacity(32)
 
-        var current: FileAccumulator? = nil
+        var current: FileAccumulator?
 
         func finishCurrent() {
             guard var acc = current else { return }
@@ -148,7 +148,7 @@ enum DiffParser {
         var status: DiffFileStatus
 
         var hunks: [HunkAccumulator] = []
-        var currentHunk: HunkAccumulator? = nil
+        var currentHunk: HunkAccumulator?
 
         var fallbackLines: [String] = []
         var additions: Int = 0

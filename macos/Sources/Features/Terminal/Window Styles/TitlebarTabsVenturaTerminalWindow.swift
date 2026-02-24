@@ -6,7 +6,7 @@ private let defaultSidebarWidth: CGFloat = 280
 /// Titlebar tabs for macOS 13 to 15.
 class TitlebarTabsVenturaTerminalWindow: TerminalWindow {
     fileprivate var worktrunkSidebarWidth: CGFloat = defaultSidebarWidth
-    private var windowButtonsBackdropWidthConstraint: NSLayoutConstraint? = nil
+    private var windowButtonsBackdropWidthConstraint: NSLayoutConstraint?
 
     /// Titlebar tabs can't support the update accessory because of the way we layout
     /// the native tabs back into the menu bar.

@@ -17,6 +17,7 @@ struct WorktrunkSidebarView: View {
 
     @AppStorage(WorktrunkPreferences.defaultAgentKey) private var defaultActionRaw: String = WorktrunkDefaultAction.terminal.rawValue
     @AppStorage(WorktrunkPreferences.sidebarTabsKey) private var sidebarTabsEnabled: Bool = true
+    @AppStorage(WorktrunkPreferences.displaySessionTimeKey) private var displaySessionTimeEnabled: Bool = true
     @State private var createSheetRepo: WorktrunkStore.Repository?
     @State private var removeRepoConfirm: WorktrunkStore.Repository?
     @State private var removeWorktreeConfirm: WorktrunkStore.Worktree?
@@ -675,7 +676,7 @@ struct WorktrunkSidebarView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(wt.branch)
                         .lineLimit(1)
-                    if let recencyDate {
+                    if displaySessionTimeEnabled, let recencyDate {
                         (Text(repoName) + Text(" • ") + Text(recencyDate, style: .relative))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -947,6 +948,7 @@ private struct WorktreeTabRowLabel: View {
     let onDropBefore: (Int) -> Void
     let windowNumberByWorktreePath: [String: Int]
 
+    @AppStorage(WorktrunkPreferences.displaySessionTimeKey) private var displaySessionTimeEnabled: Bool = true
     @State private var isDropTarget: Bool = false
 
     private var isDropTargetBinding: Binding<Bool> {
@@ -977,7 +979,7 @@ private struct WorktreeTabRowLabel: View {
                             .fontWeight(tab.isActive ? .semibold : .regular)
                         if let repoName {
                             let recencyDate = store.recencyDate(for: worktree.path)
-                            if let recencyDate {
+                            if displaySessionTimeEnabled, let recencyDate {
                                 (Text(repoName) + Text(" • ") + Text(recencyDate, style: .relative))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -1100,7 +1102,7 @@ private struct CreateWorktreeSheet: View {
     @State private var base: String = ""
     @State private var createBranch: Bool = true
     @State private var isWorking: Bool = false
-    @State private var errorText: String? = nil
+    @State private var errorText: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1170,6 +1172,8 @@ private struct SessionRow: View {
     let session: AISession
     let onResume: () -> Void
 
+    @AppStorage(WorktrunkPreferences.displaySessionTimeKey) private var displaySessionTimeEnabled: Bool = true
+
     var body: some View {
         Button(action: onResume) {
             HStack {
@@ -1186,11 +1190,13 @@ private struct SessionRow: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        Text("•")
-                            .foregroundStyle(.secondary)
-                        Text(session.timestamp, style: .relative)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        if displaySessionTimeEnabled {
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            Text(session.timestamp, style: .relative)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 Spacer()

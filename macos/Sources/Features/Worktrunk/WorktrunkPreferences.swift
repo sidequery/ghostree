@@ -274,6 +274,7 @@ enum WorktrunkPreferences {
     static let defaultAgentKey = "GhosttyWorktrunkDefaultAgent.v1"
     static let githubIntegrationKey = "GhostreeGitHubIntegration.v1"
     static let lastEditorKey = "GhostreeLastEditor.v1"
+    static let displaySessionTimeKey = "GhostreeDisplaySessionTime.v1"
 
     static var worktreeTabsEnabled: Bool {
         UserDefaults.standard.bool(forKey: worktreeTabsKey)
@@ -310,5 +311,12 @@ enum WorktrunkPreferences {
             return last
         }
         return installed.first
+    }
+
+    static var displaySessionTimeEnabled: Bool {
+        if !UserDefaults.standard.dictionaryRepresentation().keys.contains(displaySessionTimeKey) {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: displaySessionTimeKey)
     }
 }

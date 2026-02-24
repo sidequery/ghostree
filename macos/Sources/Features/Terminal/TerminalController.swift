@@ -1850,13 +1850,19 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             )
             if let window = window as? TerminalWindow {
                 window.titlebarFont = lastTitlebarFont
+                window.setDiffSidebarButtonState(willShow)
             }
         }
     }
 
     @objc func closeGitDiff(_ sender: Any?) {
         guard #available(macOS 26.0, *) else { return }
-        Task { await gitDiffSidebarState.setVisible(false, cwd: nil) }
+        Task {
+            await gitDiffSidebarState.setVisible(false, cwd: nil)
+            if let window = window as? TerminalWindow {
+                window.setDiffSidebarButtonState(false)
+            }
+        }
     }
 
     @objc func openInEditor(_ sender: Any?) {

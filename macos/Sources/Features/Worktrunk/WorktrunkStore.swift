@@ -169,8 +169,8 @@ final class SessionIndexManager {
 }
 
 enum WorktreeSortOrder: String, CaseIterable {
-    case alphabetical = "alphabetical"
-    case recentActivity = "recentActivity"
+    case alphabetical
+    case recentActivity
 
     var label: String {
         switch self {
@@ -181,8 +181,8 @@ enum WorktreeSortOrder: String, CaseIterable {
 }
 
 enum WorktrunkSidebarListMode: String {
-    case nestedByRepo = "nestedByRepo"
-    case flatWorktrees = "flatWorktrees"
+    case nestedByRepo
+    case flatWorktrees
 }
 
 final class WorktrunkStore: ObservableObject {

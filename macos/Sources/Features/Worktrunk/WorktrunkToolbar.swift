@@ -46,11 +46,11 @@ final class WorktrunkToolbar: NSToolbar, NSToolbarDelegate {
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace]
+        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace, .openInEditor]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace]
+        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace, .openInEditor]
     }
 
     func toolbar(
@@ -84,9 +84,28 @@ final class WorktrunkToolbar: NSToolbar, NSToolbarDelegate {
             item.label = "Toggle Sidebar"
             item.isNavigational = true
             return item
+        case .openInEditor:
+            return makeOpenInEditorItem()
         default:
             return NSToolbarItem(itemIdentifier: itemIdentifier)
         }
+    }
+
+    private func makeOpenInEditorItem() -> NSToolbarItem? {
+        let installed = ExternalEditor.installedEditors()
+        guard !installed.isEmpty else { return nil }
+
+        let item = NSToolbarItem(itemIdentifier: .openInEditor)
+        item.label = "Open in Editor"
+        item.toolTip = "Open in Editor"
+
+        let segmented = EditorSplitButton.make(
+            editors: installed,
+            target: targetController
+        )
+
+        item.view = segmented
+        return item
     }
 
     private func updateTitleAttributes() {
@@ -102,6 +121,87 @@ final class WorktrunkToolbar: NSToolbar, NSToolbarDelegate {
 
 extension NSToolbarItem.Identifier {
     static let worktrunkTitleText = NSToolbarItem.Identifier("WorktrunkTitleText")
+    static let openInEditor = NSToolbarItem.Identifier("OpenInEditor")
+}
+
+/// A split button for the "Open in Editor" toolbar item.
+/// Left segment: click to open in the preferred editor (shows that editor's app icon).
+/// Right segment: dropdown arrow that shows a menu of all installed editors.
+enum EditorSplitButton {
+    private static let iconSize = NSSize(width: 16, height: 16)
+    private static let fallbackImage = NSImage(
+        systemSymbolName: "curlybraces",
+        accessibilityDescription: "Open in Editor"
+    )!
+
+    static func make(editors: [ExternalEditor], target: TerminalController?) -> NSSegmentedControl {
+        let segmented = NSSegmentedControl()
+        segmented.segmentCount = 2
+        segmented.trackingMode = .momentary
+        segmented.segmentStyle = .separated
+
+        // Segment 0: main action (preferred editor icon + "Open" label)
+        let preferred = WorktrunkPreferences.preferredEditor ?? editors.first!
+        segmented.setImage(editorIcon(preferred), forSegment: 0)
+        segmented.setImageScaling(.scaleProportionallyDown, forSegment: 0)
+        segmented.setLabel("Open", forSegment: 0)
+        segmented.setWidth(0, forSegment: 0)
+        segmented.setToolTip("Open in \(preferred.title)", forSegment: 0)
+
+        // Segment 1: dropdown arrow with menu
+        let menu = buildMenu(editors: editors, target: target)
+        segmented.setMenu(menu, forSegment: 1)
+        segmented.setShowsMenuIndicator(true, forSegment: 1)
+        segmented.setWidth(22, forSegment: 1)
+        segmented.setToolTip("Choose editor", forSegment: 1)
+
+        segmented.target = target
+        segmented.action = #selector(TerminalController.openInEditor(_:))
+
+        return segmented
+    }
+
+    static func editorIcon(_ editor: ExternalEditor) -> NSImage {
+        guard let icon = editor.appIcon else { return fallbackImage }
+        let resized = NSImage(size: iconSize, flipped: false) { rect in
+            icon.draw(in: rect)
+            return true
+        }
+        return resized
+    }
+
+    static func updateIcon(_ segmented: NSSegmentedControl, editor: ExternalEditor) {
+        segmented.setImage(editorIcon(editor), forSegment: 0)
+        segmented.setToolTip("Open in \(editor.title)", forSegment: 0)
+    }
+
+    private static func buildMenu(editors: [ExternalEditor], target: TerminalController?) -> NSMenu {
+        let menu = NSMenu()
+        let groups = ExternalEditor.installedByCategory()
+        for (index, group) in groups.enumerated() {
+            if index > 0 {
+                menu.addItem(.separator())
+            }
+            for editor in group.editors {
+                let menuItem = NSMenuItem(
+                    title: editor.title,
+                    action: #selector(TerminalController.openInSpecificEditor(_:)),
+                    keyEquivalent: ""
+                )
+                menuItem.target = target
+                menuItem.representedObject = editor
+                if let icon = editor.appIcon {
+                    let resized = NSImage(size: iconSize, flipped: false) { rect in
+                        icon.draw(in: rect)
+                        return true
+                    }
+                    menuItem.image = resized
+                }
+                menu.addItem(menuItem)
+            }
+        }
+        return menu
+    }
 }
 
 private class CenteredDynamicLabel: NSTextField {

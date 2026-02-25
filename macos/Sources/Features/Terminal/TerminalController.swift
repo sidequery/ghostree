@@ -1859,6 +1859,64 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         Task { await gitDiffSidebarState.setVisible(false, cwd: nil) }
     }
 
+    @objc func openInEditor(_ sender: Any?) {
+        // If the dropdown segment (1) was clicked, show the editor menu
+        if let segmented = sender as? NSSegmentedControl, segmented.selectedSegment == 1 {
+            if let menu = segmented.menu(forSegment: 1) {
+                let screenRect = segmented.window?.convertToScreen(
+                    segmented.convert(segmented.bounds, to: nil)
+                ) ?? .zero
+                let origin = NSPoint(x: screenRect.minX, y: screenRect.minY)
+                menu.popUp(positioning: nil, at: origin, in: nil)
+            }
+            return
+        }
+
+        guard let editor = WorktrunkPreferences.preferredEditor else { return }
+        openIn(editor: editor)
+    }
+
+    @objc func openInSpecificEditor(_ sender: Any?) {
+        guard let menuItem = sender as? NSMenuItem,
+              let editor = menuItem.representedObject as? ExternalEditor else { return }
+        openIn(editor: editor)
+    }
+
+    private func openIn(editor: ExternalEditor) {
+        guard let appURL = editor.appURL else { return }
+        let cwd = currentEditorPath()
+        guard let cwd else { return }
+
+        WorktrunkPreferences.lastEditor = editor
+        refreshEditorToolbarIcon(for: editor)
+
+        let url = URL(fileURLWithPath: cwd)
+        let config = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: config)
+    }
+
+    private func refreshEditorToolbarIcon(for editor: ExternalEditor) {
+        guard let toolbar = window?.toolbar else { return }
+        for item in toolbar.items {
+            guard item.itemIdentifier == .openInEditor,
+                  let segmented = item.view as? NSSegmentedControl else { continue }
+            EditorSplitButton.updateIcon(segmented, editor: editor)
+            break
+        }
+    }
+
+    private func currentEditorPath() -> String? {
+        // Prefer selected worktree path from sidebar, fall back to focused surface pwd
+        switch worktrunkSidebarState.selection {
+        case .worktree(_, let path):
+            return path
+        case .session(_, _, let worktreePath):
+            return worktreePath
+        default:
+            return focusedSurface?.pwd
+        }
+    }
+
     private func resumeAISession(_ session: AISession) {
         var base = Ghostty.SurfaceConfiguration()
         base.workingDirectory = session.cwd

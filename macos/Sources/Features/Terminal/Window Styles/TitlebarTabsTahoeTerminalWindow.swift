@@ -286,23 +286,24 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
     // MARK: NSToolbarDelegate
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        var items: [NSToolbarItem.Identifier] = [
+        [
             .toggleSidebar,
             .sidebarTrackingSeparator,
             .title,
             .flexibleSpace,
             .space,
+            .openInEditor,
         ]
-        return items
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [
+        [
             .toggleSidebar,
             .sidebarTrackingSeparator,
             .flexibleSpace,
             .title,
             .flexibleSpace,
+            .openInEditor,
         ]
     }
 
@@ -335,9 +336,30 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             item.label = "Toggle Sidebar"
             item.isNavigational = true
             return item
+        case .openInEditor:
+            return makeOpenInEditorItem()
         default:
             return NSToolbarItem(itemIdentifier: itemIdentifier)
         }
+    }
+
+    private func makeOpenInEditorItem() -> NSToolbarItem? {
+        let installed = ExternalEditor.installedEditors()
+        guard !installed.isEmpty else { return nil }
+
+        let controller = windowController as? TerminalController
+
+        let item = NSToolbarItem(itemIdentifier: .openInEditor)
+        item.label = "Open in Editor"
+        item.toolTip = "Open in Editor"
+
+        let segmented = EditorSplitButton.make(
+            editors: installed,
+            target: controller
+        )
+
+        item.view = segmented
+        return item
     }
 
     // MARK: SwiftUI

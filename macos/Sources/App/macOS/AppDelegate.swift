@@ -1174,12 +1174,7 @@ class AppDelegate: NSObject,
             window.isReleasedWhenClosed = false
             window.collectionBehavior = [.moveToActiveSpace]
 
-            let toolbar = NSToolbar(identifier: "SettingsToolbar")
-            toolbar.showsBaselineSeparator = false
-            window.toolbar = toolbar
             window.toolbarStyle = .unified
-
-            window.minSize = NSSize(width: 680, height: 450)
             window.contentViewController = NSHostingController(rootView: SettingsView())
             settingsWindowController = NSWindowController(window: window)
         }

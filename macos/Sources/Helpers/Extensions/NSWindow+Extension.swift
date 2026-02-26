@@ -39,6 +39,20 @@ extension NSWindow {
         guard let firstWindow = tabGroup?.windows.first else { return true }
         return firstWindow === self
     }
+
+    @discardableResult
+    func addTabbedWindowSafely(
+        _ child: NSWindow,
+        ordered: NSWindow.OrderingMode
+    ) -> Bool {
+        var error: NSError?
+        let success = GhosttyAddTabbedWindowSafely(self, child, ordered.rawValue, &error)
+        if let error {
+            Ghostty.logger.error("addTabbedWindow failed: \(error.localizedDescription)")
+        }
+
+        return success
+    }
 }
 
 /// Native tabbing private API usage. :(

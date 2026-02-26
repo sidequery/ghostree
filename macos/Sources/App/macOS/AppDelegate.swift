@@ -1165,7 +1165,7 @@ class AppDelegate: NSObject,
         if settingsWindowController == nil {
             let window = SettingsWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 720, height: 500),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered,
                 defer: false
             )
@@ -1174,12 +1174,7 @@ class AppDelegate: NSObject,
             window.isReleasedWhenClosed = false
             window.collectionBehavior = [.moveToActiveSpace]
 
-            let toolbar = NSToolbar(identifier: "SettingsToolbar")
-            toolbar.showsBaselineSeparator = false
-            window.toolbar = toolbar
             window.toolbarStyle = .unified
-
-            window.minSize = NSSize(width: 680, height: 450)
             window.contentViewController = NSHostingController(rootView: SettingsView())
             settingsWindowController = NSWindowController(window: window)
         }

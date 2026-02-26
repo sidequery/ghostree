@@ -178,7 +178,7 @@ class TerminalWindow: NSWindow {
             button.controlSize = .large
             button.target = terminalController
             button.action = #selector(TerminalController.toggleGitDiffSidebar(_:))
-            button.setButtonType(.momentaryPushIn)
+            button.setButtonType(.pushOnPushOff)
 
             container.addSubview(button)
             NSLayoutConstraint.activate([
@@ -451,6 +451,13 @@ class TerminalWindow: NSWindow {
         label.postsFrameChangedNotifications = true
         return label
     }()
+
+    // MARK: Diff Sidebar Toggle
+
+    /// Update the diff sidebar toggle button to reflect visibility state.
+    func setDiffSidebarButtonState(_ isOn: Bool) {
+        diffSidebarButton?.state = isOn ? .on : .off
+    }
 
     // MARK: Surface Zoom
 

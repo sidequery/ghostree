@@ -1165,7 +1165,7 @@ class AppDelegate: NSObject,
         if settingsWindowController == nil {
             let window = SettingsWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 720, height: 500),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered,
                 defer: false
             )

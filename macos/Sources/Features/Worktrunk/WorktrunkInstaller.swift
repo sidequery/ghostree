@@ -30,9 +30,9 @@ enum WorktrunkInstallerError: LocalizedError {
 
 enum WorktrunkInstaller {
     private struct Release {
-        static let version = "0.22.0"
+        static let version = "0.27.0"
         static let assetName = "worktrunk-aarch64-apple-darwin.tar.xz"
-        static let sha256 = "1fd193d8ed95453dbeadd900035312a6df61ff3fad43dc85eb1a9f7b48895b3c"
+        static let sha256 = "3ebfbe6b034afeb686bbddd39c0bee1942ed1448a7a7d5c9cca703ae9693683f"
 
         static var url: URL {
             URL(string: "https://github.com/max-sixty/worktrunk/releases/download/v\(version)/\(assetName)")!
@@ -47,8 +47,11 @@ enum WorktrunkInstaller {
         let binDir = AgentStatusPaths.binDir
         let wtDest = binDir.appendingPathComponent("wt", isDirectory: false)
         let gitWtDest = binDir.appendingPathComponent("git-wt", isDirectory: false)
+        let versionFile = binDir.appendingPathComponent(".worktrunk-version", isDirectory: false)
+
         if FileManager.default.isExecutableFile(atPath: wtDest.path),
-           FileManager.default.isExecutableFile(atPath: gitWtDest.path) {
+           FileManager.default.isExecutableFile(atPath: gitWtDest.path),
+           installedVersion(at: versionFile) == Release.version {
             return
         }
 
@@ -96,6 +99,12 @@ enum WorktrunkInstaller {
         try makeExecutable(url: gitWtDest)
         _ = try? removeQuarantine(url: wtDest)
         _ = try? removeQuarantine(url: gitWtDest)
+
+        try? Release.version.write(to: versionFile, atomically: true, encoding: .utf8)
+    }
+
+    private static func installedVersion(at url: URL) -> String? {
+        try? String(contentsOf: url, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func isSupportedArchitecture() -> Bool {

@@ -161,8 +161,11 @@ final class GitDiffSidebarState: ObservableObject {
 
         let start = DispatchTime.now().uptimeNanoseconds
 
-        isLoading = true
-        defer { isLoading = false }
+        // Only show the loading spinner for forced (user-initiated) refreshes,
+        // not for background poll/watch refreshes, to avoid visual pulsing.
+        let showLoading = force
+        if showLoading { isLoading = true }
+        defer { if showLoading { isLoading = false } }
 
         let root = await store.repoRoot(for: effectiveCwd.path)
         repoRoot = root

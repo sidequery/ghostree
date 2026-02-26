@@ -12,6 +12,7 @@ struct GitDiffMainView: View {
     var body: some View {
         content
             .frame(maxWidth: .greatestFiniteMagnitude, maxHeight: .greatestFiniteMagnitude, alignment: .topLeading)
+            .background(Color(nsColor: .controlBackgroundColor))
     }
 
     @ViewBuilder

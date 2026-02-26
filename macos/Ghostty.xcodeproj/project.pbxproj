@@ -151,6 +151,7 @@
 				Features/Worktrunk/AgentStatus/AgentHookInstaller.swift,
 				Features/Worktrunk/AgentStatus/AgentStatusModels.swift,
 				Features/Worktrunk/AgentStatus/AgentStatusPaths.swift,
+				Features/Worktrunk/AgentStatus/CursorAgentDB.swift,
 				Features/Worktrunk/GitHub/GHClient.swift,
 				Features/Worktrunk/GitHub/GitHubModels.swift,
 				Features/Worktrunk/GitHub/GitRefWatcher.swift,

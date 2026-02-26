@@ -1936,6 +1936,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             base.command = "codex resume \(session.id)"
         case .opencode:
             base.command = "opencode --session \(session.id)"
+        case .agent:
+            base.command = "agent --resume \(session.id)"
         }
 
         if WorktrunkPreferences.worktreeTabsEnabled {

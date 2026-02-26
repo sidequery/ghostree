@@ -1,9 +1,10 @@
 import Foundation
 
 enum AgentHookInstaller {
-    private static let notifyScriptMarker = "# Ghostree agent notification hook v7"
+    private static let notifyScriptMarker = "# Ghostree agent notification hook v8"
     private static let claudeSettingsMarker = "\"_v\":3"
-    private static let wrapperMarker = "# Ghostree agent wrapper v3"
+    private static let wrapperMarker = "# Ghostree agent wrapper v4"
+    private static let cursorAgentHooksMarker = "ghostree-notify"
 
     static func ensureInstalled() {
         if ProcessInfo.processInfo.environment["GHOSTREE_DISABLE_AGENT_HOOKS"] == "1" {
@@ -51,6 +52,13 @@ enum AgentHookInstaller {
             marker: wrapperMarker,
             content: buildCodexWrapper()
         )
+        ensureFile(
+            url: AgentStatusPaths.cursorAgentWrapperPath,
+            mode: 0o755,
+            marker: wrapperMarker,
+            content: buildCursorAgentWrapper()
+        )
+        ensureCursorAgentGlobalHooks(notifyPath: AgentStatusPaths.notifyHookPath.path)
 
         ensureFile(
             url: AgentStatusPaths.opencodeGlobalPluginPath,
@@ -129,6 +137,9 @@ enum AgentHookInstaller {
         [ "$EVENT_TYPE" = "UserPromptSubmit" ] && EVENT_TYPE="Start"
         [ "$EVENT_TYPE" = "PermissionResponse" ] && EVENT_TYPE="Start"
         [ "$EVENT_TYPE" = "SessionEnd" ] && EVENT_TYPE="SessionEnd"
+        [ "$EVENT_TYPE" = "stop" ] && EVENT_TYPE="Stop"
+        [ "$EVENT_TYPE" = "pre_tool_use" ] && EVENT_TYPE="Start"
+        [ "$EVENT_TYPE" = "post_tool_use" ] && EVENT_TYPE="Start"
         if [ -z "$EVENT_TYPE" ]; then
           TS="$(perl -MTime::HiRes=time -MPOSIX=strftime -e '$t=time; $s=int($t); $ms=int(($t-$s)*1000); print strftime(\"%Y-%m-%dT%H:%M:%S\", gmtime($s)).sprintf(\".%03dZ\", $ms);')"
           CWD="$(pwd -P 2>/dev/null || pwd)"
@@ -149,11 +160,18 @@ enum AgentHookInstaller {
         if [ -z "$JSON_CWD" ]; then
           JSON_CWD=$(echo "$INPUT" | grep -oE '"worktree"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"')
         fi
+        if [ -z "$JSON_CWD" ]; then
+          JSON_CWD=$(echo "$INPUT" | grep -oE '"workspace_roots"[[:space:]]*:[[:space:]]*\\["[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"')
+        fi
         if [ "$JSON_CWD" = "/" ]; then
           JSON_CWD=""
         fi
         if [ -n "$JSON_CWD" ]; then
           CWD="$JSON_CWD"
+        elif [ -n "$CURSOR_PROJECT_DIR" ]; then
+          CWD="$CURSOR_PROJECT_DIR"
+        elif [ -n "$CLAUDE_PROJECT_DIR" ]; then
+          CWD="$CLAUDE_PROJECT_DIR"
         else
           CWD="$(pwd -P 2>/dev/null || pwd)"
         fi
@@ -293,6 +311,102 @@ enum AgentHookInstaller {
 
         exec "$REAL_BIN" -c 'notify=["bash","\(notifyPath)"]' "$@"
         """
+    }
+
+    private static func buildCursorAgentWrapper() -> String {
+        let binDir = AgentStatusPaths.binDir.path
+        let eventsDir = AgentStatusPaths.eventsCacheDir.path
+        return """
+        #!/bin/bash
+        \(wrapperMarker)
+        # Wrapper for Cursor Agent: emits lifecycle events.
+        # Hook configuration is managed via ~/.cursor/hooks.json.
+
+        \(pathAugmentSnippet())
+
+        find_real_binary() {
+          local name="$1"
+          local IFS=:
+          for dir in $PATH; do
+            [ -z "$dir" ] && continue
+            dir="${dir%/}"
+            if [ "$dir" = "\(binDir)" ]; then
+              continue
+            fi
+            if [ -x "$dir/$name" ] && [ ! -d "$dir/$name" ]; then
+              printf "%s\\n" "$dir/$name"
+              return 0
+            fi
+          done
+          return 1
+        }
+
+        REAL_BIN="$(find_real_binary "agent")"
+        if [ -z "$REAL_BIN" ]; then
+          REAL_BIN="$(find_real_binary "cursor-agent")"
+        fi
+        if [ -z "$REAL_BIN" ]; then
+          echo "Ghostree: agent (Cursor Agent) not found in PATH. Install it and ensure it is on PATH, then retry." >&2
+          exit 127
+        fi
+
+        # Emit synthetic Start event for Cursor Agent
+        printf '{\"timestamp\":\"%s\",\"eventType\":\"Start\",\"cwd\":\"%s\"}\\n' \
+          "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \
+          "$(pwd -P 2>/dev/null || pwd)" \
+          >> "${GHOSTREE_AGENT_EVENTS_DIR:-\(eventsDir)}/agent-events.jsonl" 2>/dev/null
+
+        exec "$REAL_BIN" "$@"
+        """
+    }
+
+    /// Merges the Ghostree stop hook into ~/.cursor/hooks.json without clobbering
+    /// any existing user hooks.  Idempotent: checks for the marker command before writing.
+    private static func ensureCursorAgentGlobalHooks(notifyPath: String) {
+        let url = AgentStatusPaths.cursorAgentGlobalHooksPath
+        let escapedNotifyPath = notifyPath.replacingOccurrences(of: "'", with: "'\\''")
+        let ghostreeCommand = "bash '\(escapedNotifyPath)'"
+
+        // Read existing file if it exists
+        var root: [String: Any] = [:]
+        if let data = try? Data(contentsOf: url),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            root = json
+        }
+
+        // Already installed?
+        if let existing = try? String(contentsOf: url, encoding: .utf8),
+           existing.contains(cursorAgentHooksMarker) {
+            return
+        }
+
+        root["version"] = 1
+
+        var hooks = root["hooks"] as? [String: Any] ?? [:]
+        var stopHooks = hooks["stop"] as? [[String: Any]] ?? []
+
+        // Remove any stale Ghostree entries
+        stopHooks.removeAll { entry in
+            guard let cmd = entry["command"] as? String else { return false }
+            return cmd.contains("ghostree") || cmd.contains("Ghostree") || cmd.contains(cursorAgentHooksMarker)
+        }
+
+        // Add the Ghostree hook (tagged so we can find it later)
+        stopHooks.append(["command": ghostreeCommand])
+        hooks["stop"] = stopHooks
+        root["hooks"] = hooks
+
+        // Ensure ~/.cursor directory exists
+        let parentDir = url.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+
+        guard let data = try? JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys]),
+              var jsonString = String(data: data, encoding: .utf8) else {
+            return
+        }
+
+        jsonString += "\n"
+        try? jsonString.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private static func buildOpenCodePlugin() -> String {

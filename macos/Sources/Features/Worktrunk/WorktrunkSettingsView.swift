@@ -6,6 +6,7 @@ struct WorktrunkSettingsView: View {
     @AppStorage(WorktrunkPreferences.openBehaviorKey) private var openBehaviorRaw: String = WorktrunkOpenBehavior.newTab.rawValue
     @AppStorage(WorktrunkPreferences.defaultAgentKey) private var defaultActionRaw: String = WorktrunkDefaultAction.terminal.rawValue
     @AppStorage(WorktrunkPreferences.githubIntegrationKey) private var githubIntegrationEnabled: Bool = true
+    @AppStorage(WorktrunkPreferences.displaySessionTimeKey) private var displaySessionTimeEnabled: Bool = true
 
     @State private var ghAvailable: Bool = false
 
@@ -78,6 +79,13 @@ struct WorktrunkSettingsView: View {
                             .font(.caption)
                     }
                 }
+            }
+
+            Section("Display") {
+                Toggle("Display session time", isOn: $displaySessionTimeEnabled)
+                Text("Show relative timestamps next to worktrees and sessions in the sidebar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

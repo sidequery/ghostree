@@ -220,7 +220,7 @@ private struct UpdateAvailableView: View {
     }
 }
 
-fileprivate struct HomebrewUpdateView: View {
+private struct HomebrewUpdateView: View {
     let update: UpdateState.HomebrewUpdate
     let dismiss: DismissAction
 

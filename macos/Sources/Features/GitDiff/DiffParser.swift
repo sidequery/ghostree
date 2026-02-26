@@ -13,7 +13,7 @@ enum DiffParser {
         var files: [DiffFile] = []
         files.reserveCapacity(32)
 
-        var current: FileAccumulator? = nil
+        var current: FileAccumulator?
 
         func finishCurrent() {
             guard var acc = current else { return }
@@ -148,7 +148,7 @@ enum DiffParser {
         var status: DiffFileStatus
 
         var hunks: [HunkAccumulator] = []
-        var currentHunk: HunkAccumulator? = nil
+        var currentHunk: HunkAccumulator?
 
         var fallbackLines: [String] = []
         var additions: Int = 0
@@ -383,11 +383,18 @@ enum DiffParser {
         return (stripGitDiffPathPrefix(a), stripGitDiffPathPrefix(b))
     }
 
-    private static func parseHunkHeader(_ line: String) -> (oldStart: Int, oldCount: Int, newStart: Int, newCount: Int) {
+    struct HunkRange {
+        let oldStart: Int
+        let oldCount: Int
+        let newStart: Int
+        let newCount: Int
+    }
+
+    private static func parseHunkHeader(_ line: String) -> HunkRange {
         let ns = line as NSString
         let range = NSRange(location: 0, length: ns.length)
         guard let match = hunkHeaderRegex.firstMatch(in: line, options: [], range: range) else {
-            return (0, 0, 0, 0)
+            return HunkRange(oldStart: 0, oldCount: 0, newStart: 0, newCount: 0)
         }
         func intGroup(_ idx: Int, default defaultValue: Int) -> Int {
             guard idx < match.numberOfRanges else { return defaultValue }
@@ -396,11 +403,12 @@ enum DiffParser {
             let s = ns.substring(with: r)
             return Int(s) ?? defaultValue
         }
-        let oldStart = intGroup(1, default: 0)
-        let oldCount = intGroup(2, default: 1)
-        let newStart = intGroup(3, default: 0)
-        let newCount = intGroup(4, default: 1)
-        return (oldStart, oldCount, newStart, newCount)
+        return HunkRange(
+            oldStart: intGroup(1, default: 0),
+            oldCount: intGroup(2, default: 1),
+            newStart: intGroup(3, default: 0),
+            newCount: intGroup(4, default: 1)
+        )
     }
 
     private static func stripGitDiffPathPrefix(_ token: String) -> String {

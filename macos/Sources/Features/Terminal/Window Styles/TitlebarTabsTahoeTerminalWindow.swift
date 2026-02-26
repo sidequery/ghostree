@@ -16,7 +16,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
     private var viewModel = ViewModel()
 
     private var worktrunkSidebarWidth: CGFloat = defaultSidebarWidth
-    private var tabBarLeftConstraint: NSLayoutConstraint? = nil
+    private var tabBarLeftConstraint: NSLayoutConstraint?
     private var displayTitle: String = "👻 Ghostree"
     /// Titlebar tabs can't support the update accessory because of the way we layout
     /// the native tabs back into the menu bar.
@@ -272,7 +272,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
     func updateWorktrunkSidebarWidth(_ width: CGFloat) {
         worktrunkSidebarWidth = max(0, width)
 
-        let windowButtonsPadding: CGFloat = switch(self.derivedConfig.macosWindowButtons) {
+        let windowButtonsPadding: CGFloat = switch self.derivedConfig.macosWindowButtons {
         case .hidden: 0
         case .visible: windowControlButtonsWidth
         }

@@ -38,11 +38,11 @@ class TerminalWindow: NSWindow {
     private(set) var derivedConfig: DerivedConfig = .init()
 
     /// Sets up our tab context menu
-    private var tabMenuObserver: NSObjectProtocol? = nil
-    private var titlebarFontTabGroupObservation: NSKeyValueObservation? = nil
-    private var titlebarFontTabBarObservation: NSKeyValueObservation? = nil
-    private var lastTitlebarFontState: TitlebarFontState? = nil
-    private var lastAppliedAppearance: AppearanceState? = nil
+    private var tabMenuObserver: NSObjectProtocol?
+    private var titlebarFontTabGroupObservation: NSKeyValueObservation?
+    private var titlebarFontTabBarObservation: NSKeyValueObservation?
+    private var lastTitlebarFontState: TitlebarFontState?
+    private var lastAppliedAppearance: AppearanceState?
 
     /// Whether this window supports the update accessory. If this is false, then views within this
     /// window should determine how to show update notifications.

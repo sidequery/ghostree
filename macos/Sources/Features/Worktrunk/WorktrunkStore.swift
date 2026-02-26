@@ -169,8 +169,8 @@ final class SessionIndexManager {
 }
 
 enum WorktreeSortOrder: String, CaseIterable {
-    case alphabetical = "alphabetical"
-    case recentActivity = "recentActivity"
+    case alphabetical
+    case recentActivity
 
     var label: String {
         switch self {
@@ -181,8 +181,8 @@ enum WorktreeSortOrder: String, CaseIterable {
 }
 
 enum WorktrunkSidebarListMode: String {
-    case nestedByRepo = "nestedByRepo"
-    case flatWorktrees = "flatWorktrees"
+    case nestedByRepo
+    case flatWorktrees
 }
 
 final class WorktrunkStore: ObservableObject {
@@ -269,7 +269,7 @@ final class WorktrunkStore: ObservableObject {
     @Published var isRefreshing: Bool = false
     @Published var isInstallingWorktrunk: Bool = false
     @Published var needsWorktrunkInstall: Bool = false
-    @Published var errorMessage: String? = nil
+    @Published var errorMessage: String?
     @Published private(set) var sidebarModelRevision: Int = 0
     @Published var worktreeSortOrder: WorktreeSortOrder = .recentActivity {
         didSet {
@@ -295,13 +295,13 @@ final class WorktrunkStore: ObservableObject {
     private let firstSeenAtKey = "GhostreeWorktrunkWorktreeFirstSeenAtByPath.v1"
     private let sessionCache = SessionCacheManager()
     private let sessionIndex = SessionIndexManager()
-    private var agentEventTailer: AgentEventTailer? = nil
+    private var agentEventTailer: AgentEventTailer?
     private var pendingAgentEventsByCwd: [String: AgentLifecycleEvent] = [:]
     private var agentStatusAckedAtByWorktreePath: [String: Date] = [:]
     private var firstSeenAtByWorktreePath: [String: Date] = [:]
     private var lastAppQuitTimestamp: Date?
     private var sidebarModelRevisionCounter: Int = 0
-    private var refreshAllTask: Task<Void, Never>? = nil
+    private var refreshAllTask: Task<Void, Never>?
     private var refreshAllNeedsRerun: Bool = false
 
     init() {
@@ -631,7 +631,7 @@ final class WorktrunkStore: ObservableObject {
         await MainActor.run {
             var removedPaths = Set<String>()
             var didChangeFirstSeen = false
-            var lastError: String? = nil
+            var lastError: String?
 
             for repo in repoSnapshot {
                 guard let result = resultsByRepoID[repo.id] else { continue }
@@ -1672,7 +1672,7 @@ final class WorktrunkStore: ObservableObject {
                         .appendingPathComponent("session")
                         .appendingPathComponent("message")
                         .appendingPathComponent(info.id)
-                    var messageDirMtime: TimeInterval? = nil
+                    var messageDirMtime: TimeInterval?
                     var messageCount = 0
                     if let dirAttrs = try? FileManager.default.attributesOfItem(atPath: messageDir.path),
                        let dirMtime = (dirAttrs[.modificationDate] as? Date)?.timeIntervalSince1970 {
@@ -1977,7 +1977,7 @@ final class WorktrunkStore: ObservableObject {
     // MARK: - Session Helpers
 
     private func findMatchingWorktree(_ cwd: String) -> String? {
-        var bestMatch: String? = nil
+        var bestMatch: String?
         var bestLength = 0
         let normalizedCwd = normalizePathForMatch(cwd)
 

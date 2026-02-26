@@ -155,7 +155,7 @@ class AppDelegate: NSObject,
     /// The observer for the app appearance.
     private var appearanceObserver: NSKeyValueObservation?
 
-    private var userDefaultsObserver: NSObjectProtocol? = nil
+    private var userDefaultsObserver: NSObjectProtocol?
     private var agentStatusBadgeCancellable: AnyCancellable?
 
     /// Signals

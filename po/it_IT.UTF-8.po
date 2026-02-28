@@ -1,4 +1,4 @@
-# Italian translations for com.mitchellh.ghostty package
+# Italian translations for com.mitchellh.ghostty package.
 # Traduzioni italiane per il pacchetto com.mitchellh.ghostty.
 # Copyright (C) 2025 "Mitchell Hashimoto, Ghostty contributors"
 # This file is distributed under the same license as the com.mitchellh.ghostty package.
@@ -20,7 +20,7 @@ msgstr ""
 
 #: dist/linux/ghostty_nautilus.py:53
 msgid "Open in Ghostty"
-msgstr ""
+msgstr "Apri in Ghostty"
 
 #: src/apprt/gtk/ui/1.0/clipboard-confirmation-dialog.blp:12
 #: src/apprt/gtk/ui/1.4/clipboard-confirmation-dialog.blp:12
@@ -93,23 +93,23 @@ msgstr "Ghostty: Ispettore del terminale"
 
 #: src/apprt/gtk/ui/1.2/search-overlay.blp:29
 msgid "Find…"
-msgstr ""
+msgstr "Cerca…"
 
 #: src/apprt/gtk/ui/1.2/search-overlay.blp:64
 msgid "Previous Match"
-msgstr ""
+msgstr "Corrispondenza precedente"
 
 #: src/apprt/gtk/ui/1.2/search-overlay.blp:74
 msgid "Next Match"
-msgstr ""
+msgstr "Corrispondenza successiva"
 
 #: src/apprt/gtk/ui/1.2/surface.blp:6
 msgid "Oh, no."
-msgstr ""
+msgstr "Oh no!"
 
 #: src/apprt/gtk/ui/1.2/surface.blp:7
 msgid "Unable to acquire an OpenGL context for rendering."
-msgstr ""
+msgstr "Impossibile ottenere un contesto OpenGL per il rendering."
 
 #: src/apprt/gtk/ui/1.2/surface.blp:97
 msgid ""
@@ -117,10 +117,13 @@ msgid ""
 "through the content, but no input events will be sent to the running "
 "application."
 msgstr ""
+"Questo terminale è in modalità di sola lettura. Puoi ancora vedere, "
+"selezionare e scorrere il contenuto, ma non verrà inviato alcun evento "
+"di input all'applicazione in esecuzione."
 
 #: src/apprt/gtk/ui/1.2/surface.blp:107
 msgid "Read-only"
-msgstr ""
+msgstr "Sola lettura"
 
 #: src/apprt/gtk/ui/1.2/surface.blp:260 src/apprt/gtk/ui/1.5/window.blp:200
 msgid "Copy"
@@ -132,7 +135,7 @@ msgstr "Incolla"
 
 #: src/apprt/gtk/ui/1.2/surface.blp:270
 msgid "Notify on Next Command Finish"
-msgstr ""
+msgstr "Notifica al termine del prossimo comando"
 
 #: src/apprt/gtk/ui/1.2/surface.blp:277 src/apprt/gtk/ui/1.5/window.blp:273
 msgid "Clear"
@@ -177,7 +180,7 @@ msgstr "Scheda"
 #: src/apprt/gtk/ui/1.2/surface.blp:325 src/apprt/gtk/ui/1.5/window.blp:224
 #: src/apprt/gtk/ui/1.5/window.blp:320
 msgid "Change Tab Title…"
-msgstr ""
+msgstr "Cambia titolo scheda…"
 
 #: src/apprt/gtk/ui/1.2/surface.blp:330 src/apprt/gtk/ui/1.5/window.blp:57
 #: src/apprt/gtk/ui/1.5/window.blp:107 src/apprt/gtk/ui/1.5/window.blp:229
@@ -311,15 +314,15 @@ msgstr ""
 
 #: src/apprt/gtk/class/surface.zig:1108
 msgid "Command Finished"
-msgstr ""
+msgstr "Comando terminato"
 
 #: src/apprt/gtk/class/surface.zig:1109
 msgid "Command Succeeded"
-msgstr ""
+msgstr "Comando riuscito"
 
 #: src/apprt/gtk/class/surface.zig:1110
 msgid "Command Failed"
-msgstr ""
+msgstr "Comando fallito"
 
 #: src/apprt/gtk/class/surface_child_exited.zig:109
 msgid "Command succeeded"
@@ -335,7 +338,7 @@ msgstr "Cambia il titolo del terminale"
 
 #: src/apprt/gtk/class/title_dialog.zig:226
 msgid "Change Tab Title"
-msgstr ""
+msgstr "Cambia il titolo della scheda"
 
 #: src/apprt/gtk/class/window.zig:1007
 msgid "Reloaded the configuration"

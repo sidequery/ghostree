@@ -135,11 +135,9 @@ class TerminalWindowRestoration: NSObject, NSWindowRestoration {
         // Find the focused surface in surfaceTree
         if let focusedStr = state.focusedSurface {
             var foundView: Ghostty.SurfaceView?
-            for view in c.surfaceTree {
-                if view.id.uuidString == focusedStr {
-                    foundView = view
-                    break
-                }
+            for view in c.surfaceTree where view.id.uuidString == focusedStr {
+                foundView = view
+                break
             }
 
             if let view = foundView {

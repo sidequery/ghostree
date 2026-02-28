@@ -52,10 +52,8 @@ extension NSView {
             return true
         }
 
-        for subview in subviews {
-            if subview.contains(view) {
-                return true
-            }
+        for subview in subviews where subview.contains(view) {
+            return true
         }
 
         return false
@@ -67,10 +65,8 @@ extension NSView {
             return true
         }
 
-        for subview in subviews {
-            if subview.contains(className: name) {
-                return true
-            }
+        for subview in subviews where subview.contains(className: name) {
+            return true
         }
 
         return false

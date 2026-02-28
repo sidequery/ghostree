@@ -694,7 +694,10 @@ extension Ghostty {
             if let candidate = URL(string: action.url), candidate.scheme != nil {
                 url = candidate
             } else {
-                url = URL(filePath: action.url)
+                // Expand ~ to the user's home directory so that file paths
+                // like ~/Documents/file.txt resolve correctly.
+                let expandedPath = NSString(string: action.url).standardizingPath
+                url = URL(filePath: expandedPath)
             }
 
             switch action.kind {

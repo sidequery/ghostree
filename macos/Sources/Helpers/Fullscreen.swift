@@ -296,13 +296,13 @@ class NonNativeFullscreen: FullscreenBase, FullscreenStyle {
             if tabIndex == 0 {
                 // We were previously the first tab. Add it before ("below")
                 // the first window in the tab group currently.
-                tabGroup.windows.first!.addTabbedWindow(window, ordered: .below)
+                tabGroup.windows.first!.addTabbedWindowSafely(window, ordered: .below)
             } else if tabIndex <= tabGroup.windows.count {
                 // We were somewhere in the middle
-                tabGroup.windows[tabIndex - 1].addTabbedWindow(window, ordered: .above)
+                tabGroup.windows[tabIndex - 1].addTabbedWindowSafely(window, ordered: .above)
             } else {
                 // We were at the end
-                tabGroup.windows.last!.addTabbedWindow(window, ordered: .below)
+                tabGroup.windows.last!.addTabbedWindowSafely(window, ordered: .below)
             }
         }
 

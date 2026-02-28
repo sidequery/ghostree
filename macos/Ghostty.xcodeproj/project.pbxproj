@@ -254,6 +254,7 @@
 				Helpers/PermissionRequest.swift,
 				Helpers/Private/CGS.swift,
 				Helpers/Private/Dock.swift,
+				Helpers/ObjCExceptionCatcher.m,
 				Helpers/TabGroupCloseCoordinator.swift,
 				Helpers/TabTitleEditor.swift,
 				Helpers/VibrantLayer.m,

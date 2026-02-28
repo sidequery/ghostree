@@ -890,7 +890,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         if #available(macOS 26, *) {
             if window is TitlebarTabsTahoeTerminalWindow {
                 tabGroup.removeWindow(movingWindow)
-                targetWindow.addTabbedWindow(movingWindow, ordered: .below)
+                targetWindow.addTabbedWindowSafely(movingWindow, ordered: .below)
                 relabelTabs()
                 return
             }
@@ -899,7 +899,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         NSAnimationContext.beginGrouping()
         NSAnimationContext.current.duration = 0
         tabGroup.removeWindow(movingWindow)
-        targetWindow.addTabbedWindow(movingWindow, ordered: .below)
+        targetWindow.addTabbedWindowSafely(movingWindow, ordered: .below)
         NSAnimationContext.endGrouping()
 
         relabelTabs()
@@ -915,7 +915,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         if #available(macOS 26, *) {
             if window is TitlebarTabsTahoeTerminalWindow {
                 tabGroup.removeWindow(movingWindow)
-                targetWindow.addTabbedWindow(movingWindow, ordered: .above)
+                targetWindow.addTabbedWindowSafely(movingWindow, ordered: .above)
                 relabelTabs()
                 return
             }
@@ -924,7 +924,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         NSAnimationContext.beginGrouping()
         NSAnimationContext.current.duration = 0
         tabGroup.removeWindow(movingWindow)
-        targetWindow.addTabbedWindow(movingWindow, ordered: .above)
+        targetWindow.addTabbedWindowSafely(movingWindow, ordered: .above)
         NSAnimationContext.endGrouping()
 
         relabelTabs()

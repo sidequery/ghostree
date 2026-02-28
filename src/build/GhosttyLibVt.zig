@@ -62,6 +62,13 @@ pub fn initShared(
         .{ .include_extensions = &.{".h"} },
     );
 
+    if (lib.rootModuleTarget().abi.isAndroid()) {
+        // Support 16kb page sizes, required for Android 15+.
+        lib.link_z_max_page_size = 16384; // 16kb
+
+        try @import("android_ndk").addPaths(b, lib);
+    }
+
     if (lib.rootModuleTarget().os.tag.isDarwin()) {
         // Self-hosted x86_64 doesn't work for darwin. It may not work
         // for other platforms too but definitely darwin.

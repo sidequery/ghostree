@@ -39,6 +39,7 @@ pub const Path = @import("path.zig").Path;
 pub const RepeatablePath = @import("path.zig").RepeatablePath;
 const ClipboardCodepointMap = @import("ClipboardCodepointMap.zig");
 const KeyRemapSet = @import("../input/key_mods.zig").RemapSet;
+const string = @import("string.zig");
 
 // We do this instead of importing all of terminal/main.zig to
 // limit the dependency graph. This is important because some things
@@ -1857,6 +1858,12 @@ class: ?[:0]const u8 = null,
 ///     If an invalid key is pressed, the sequence ends but the table remains
 ///     active.
 ///
+///   * Chain actions work within tables, the `chain` keyword applies to
+///     the most recently defined binding in the table. e.g. if you set
+///     `table/ctrl+a=new_window` you can chain by using `chain=text:hello`.
+///     Important: chain itself doesn't get prefixed with the table name,
+///     since it applies to the most recent binding in any table.
+///
 ///   * Prefixes like `global:` work within tables:
 ///     `foo/global:ctrl+a=new_window`.
 ///
@@ -2939,6 +2946,20 @@ keybind: Keybinds = .{},
 ///  * `vec4 iCurrentCursorColor` - Color of the terminal cursor.
 ///
 ///  * `vec4 iPreviousCursorColor` - Color of the previous terminal cursor.
+///
+///  * `vec4 iCurrentCursorStyle` - Style of the terminal cursor
+///
+///    Macros simplified use are defined for the various cursor styles:
+///
+///    - `CURSORSTYLE_BLOCK` or `0`
+///    - `CURSORSTYLE_BLOCK_HOLLOW` or `1`
+///    - `CURSORSTYLE_BAR` or `2`
+///    - `CURSORSTYLE_UNDERLINE` or `3`
+///    - `CURSORSTYLE_LOCK` or `4`
+///
+///  * `vec4 iPreviousCursorStyle` - Style of the previous terminal cursor
+///
+///  * `vec4 iCursorVisible` - Visibility of the terminal cursor.
 ///
 ///  * `float iTimeCursorChange` - Timestamp of terminal cursor change.
 ///
@@ -5625,7 +5646,7 @@ pub const Palette = struct {
 
     /// ghostty_config_palette_s
     pub const C = extern struct {
-        colors: [265]Color.C,
+        colors: [256]Color.C,
     };
 
     pub fn cval(self: Self) Palette.C {
@@ -5966,22 +5987,15 @@ pub const SelectionWordChars = struct {
     pub fn parseCLI(self: *Self, alloc: Allocator, input: ?[]const u8) !void {
         const value = input orelse return error.ValueRequired;
 
-        // Parse UTF-8 string into codepoints
+        // Parse string with Zig escape sequence support into codepoints
         var list: std.ArrayList(u21) = .empty;
         defer list.deinit(alloc);
 
         // Always include null as first boundary
         try list.append(alloc, 0);
 
-        // Parse the UTF-8 string
-        const utf8_view = std.unicode.Utf8View.init(value) catch {
-            // Invalid UTF-8, just use null boundary
-            self.codepoints = try list.toOwnedSlice(alloc);
-            return;
-        };
-
-        var utf8_it = utf8_view.iterator();
-        while (utf8_it.nextCodepoint()) |codepoint| {
+        var it = string.codepointIterator(value);
+        while (it.next() catch return error.InvalidValue) |codepoint| {
             try list.append(alloc, codepoint);
         }
 
@@ -6033,6 +6047,56 @@ pub const SelectionWordChars = struct {
         try testing.expectEqual(@as(u21, '\t'), chars.codepoints[2]);
         try testing.expectEqual(@as(u21, ';'), chars.codepoints[3]);
         try testing.expectEqual(@as(u21, ','), chars.codepoints[4]);
+    }
+
+    test "parseCLI escape sequences" {
+        const testing = std.testing;
+        var arena = ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        // \t escape should be parsed as tab
+        var chars: Self = .{};
+        try chars.parseCLI(alloc, " \\t;,");
+
+        try testing.expectEqual(@as(usize, 5), chars.codepoints.len);
+        try testing.expectEqual(@as(u21, 0), chars.codepoints[0]);
+        try testing.expectEqual(@as(u21, ' '), chars.codepoints[1]);
+        try testing.expectEqual(@as(u21, '\t'), chars.codepoints[2]);
+        try testing.expectEqual(@as(u21, ';'), chars.codepoints[3]);
+        try testing.expectEqual(@as(u21, ','), chars.codepoints[4]);
+    }
+
+    test "parseCLI backslash escape" {
+        const testing = std.testing;
+        var arena = ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        // \\ should be parsed as a single backslash
+        var chars: Self = .{};
+        try chars.parseCLI(alloc, "\\\\;");
+
+        try testing.expectEqual(@as(usize, 3), chars.codepoints.len);
+        try testing.expectEqual(@as(u21, 0), chars.codepoints[0]);
+        try testing.expectEqual(@as(u21, '\\'), chars.codepoints[1]);
+        try testing.expectEqual(@as(u21, ';'), chars.codepoints[2]);
+    }
+
+    test "parseCLI unicode escape" {
+        const testing = std.testing;
+        var arena = ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        // \u{2502} should be parsed as │
+        var chars: Self = .{};
+        try chars.parseCLI(alloc, "\\u{2502};");
+
+        try testing.expectEqual(@as(usize, 3), chars.codepoints.len);
+        try testing.expectEqual(@as(u21, 0), chars.codepoints[0]);
+        try testing.expectEqual(@as(u21, '│'), chars.codepoints[1]);
+        try testing.expectEqual(@as(u21, ';'), chars.codepoints[2]);
     }
 };
 
@@ -6170,6 +6234,15 @@ pub const Keybinds = struct {
     /// which allows all table names to be available without reservation.
     tables: std.StringArrayHashMapUnmanaged(inputpkg.Binding.Set) = .empty,
 
+    /// The most recent binding target for `chain=` additions.
+    ///
+    /// This is intentionally tracked at the Keybinds level so that chains can
+    /// apply across table boundaries according to parse order.
+    chain_target: union(enum) {
+        root,
+        table: []const u8,
+    } = .root,
+
     pub fn init(self: *Keybinds, alloc: Allocator) !void {
         // We don't clear the memory because it's in the arena and unlikely
         // to be free-able anyways (since arenas can only clear the last
@@ -6177,6 +6250,7 @@ pub const Keybinds = struct {
         // will be freed when the config is freed.
         self.set = .{};
         self.tables = .empty;
+        self.chain_target = .root;
 
         // keybinds for opening and reloading config
         try self.set.put(
@@ -6959,6 +7033,7 @@ pub const Keybinds = struct {
             log.info("config has 'keybind = clear', all keybinds cleared", .{});
             self.set = .{};
             self.tables = .empty;
+            self.chain_target = .root;
             return;
         }
 
@@ -6996,16 +7071,39 @@ pub const Keybinds = struct {
             if (binding.len == 0) {
                 log.debug("config has 'keybind = {s}/', table cleared", .{table_name});
                 gop.value_ptr.* = .{};
+                self.chain_target = .root;
                 return;
+            }
+
+            // Chains are only allowed at the root level. Their target is
+            // tracked globally by parse order in `self.chain_target`.
+            if (std.mem.startsWith(u8, binding, "chain=")) {
+                return error.InvalidFormat;
             }
 
             // Parse and add the binding to the table
             try gop.value_ptr.parseAndPut(alloc, binding);
+            self.chain_target = .{ .table = gop.key_ptr.* };
+            return;
+        }
+
+        if (std.mem.startsWith(u8, value, "chain=")) {
+            switch (self.chain_target) {
+                .root => try self.set.parseAndPut(alloc, value),
+                .table => |table_name| {
+                    const table = self.tables.getPtr(table_name) orelse {
+                        self.chain_target = .root;
+                        return error.InvalidFormat;
+                    };
+                    try table.parseAndPut(alloc, value);
+                },
+            }
             return;
         }
 
         // Parse into default set
         try self.set.parseAndPut(alloc, value);
+        self.chain_target = .root;
     }
 
     /// Deep copy of the struct. Required by Config.
@@ -7445,6 +7543,63 @@ pub const Keybinds = struct {
         try testing.expectEqual(0, keybinds.set.bindings.count());
         try testing.expectEqual(1, keybinds.tables.count());
         try testing.expect(keybinds.tables.contains("mytable"));
+    }
+
+    test "parseCLI chain without prior parsed binding is invalid" {
+        const testing = std.testing;
+        var arena = ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        var keybinds: Keybinds = .{};
+
+        try testing.expectError(
+            error.InvalidFormat,
+            keybinds.parseCLI(alloc, "chain=new_tab"),
+        );
+    }
+
+    test "parseCLI table chain syntax is invalid" {
+        const testing = std.testing;
+        var arena = ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        var keybinds: Keybinds = .{};
+
+        try keybinds.parseCLI(alloc, "foo/a=text:hello");
+        try testing.expectError(
+            error.InvalidFormat,
+            keybinds.parseCLI(alloc, "foo/chain=deactivate_key_table"),
+        );
+    }
+
+    test "parseCLI chain applies to most recent table binding" {
+        const testing = std.testing;
+        var arena = ArenaAllocator.init(testing.allocator);
+        defer arena.deinit();
+        const alloc = arena.allocator();
+
+        var keybinds: Keybinds = .{};
+
+        try keybinds.parseCLI(alloc, "ctrl+n=activate_key_table:foo");
+        try keybinds.parseCLI(alloc, "foo/a=text:hello");
+        try keybinds.parseCLI(alloc, "chain=deactivate_key_table");
+
+        const root_entry = keybinds.set.get(.{
+            .mods = .{ .ctrl = true },
+            .key = .{ .unicode = 'n' },
+        }).?.value_ptr.*;
+        try testing.expect(root_entry == .leaf);
+        try testing.expect(root_entry.leaf.action == .activate_key_table);
+
+        const foo_entry = keybinds.tables.get("foo").?.get(.{
+            .key = .{ .unicode = 'a' },
+        }).?.value_ptr.*;
+        try testing.expect(foo_entry == .leaf_chained);
+        try testing.expectEqual(@as(usize, 2), foo_entry.leaf_chained.actions.items.len);
+        try testing.expect(foo_entry.leaf_chained.actions.items[0] == .text);
+        try testing.expect(foo_entry.leaf_chained.actions.items[1] == .deactivate_key_table);
     }
 
     test "clone with tables" {

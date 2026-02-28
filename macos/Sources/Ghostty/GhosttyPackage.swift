@@ -1,17 +1,7 @@
-import os
 import SwiftUI
 import GhosttyKit
 
-struct Ghostty {
-    // The primary logger used by the GhosttyKit libraries.
-    static let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier!,
-        category: "ghostty"
-    )
-
-    // All the notifications that will be emitted will be put here.
-    struct Notification {}
-
+extension Ghostty {
     // The user notification category identifier
     static let userNotificationCategory = "dev.sidequery.Ghostree.userNotification"
 
@@ -315,45 +305,6 @@ extension Ghostty {
                 data: String(cString: dataPtr)
             )
         }
-    }
-
-    /// macos-icon
-    enum MacOSIcon: String, Sendable {
-        case official
-        case blueprint
-        case chalkboard
-        case glass
-        case holographic
-        case microchip
-        case paper
-        case retro
-        case xray
-        case custom
-        case customStyle = "custom-style"
-
-        /// Bundled asset name for built-in icons
-        var assetName: String? {
-            switch self {
-            case .official: return nil
-            case .blueprint: return "BlueprintImage"
-            case .chalkboard: return "ChalkboardImage"
-            case .microchip: return "MicrochipImage"
-            case .glass: return "GlassImage"
-            case .holographic: return "HolographicImage"
-            case .paper: return "PaperImage"
-            case .retro: return "RetroImage"
-            case .xray: return "XrayImage"
-            case .custom, .customStyle: return nil
-            }
-        }
-    }
-
-    /// macos-icon-frame
-    enum MacOSIconFrame: String {
-        case aluminum
-        case beige
-        case plastic
-        case chrome
     }
 
     /// Enum for the macos-window-buttons config option

@@ -265,6 +265,11 @@ class TerminalWindow: NSWindow {
         enforceTitlebarFont()
     }
 
+    @discardableResult
+    func beginInlineTabTitleEdit(for targetWindow: NSWindow) -> Bool {
+        false
+    }
+
     override func mergeAllWindows(_ sender: Any?) {
         super.mergeAllWindows(sender)
 

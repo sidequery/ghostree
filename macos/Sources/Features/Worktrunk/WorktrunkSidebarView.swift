@@ -1116,6 +1116,7 @@ private struct CreateWorktreeSheet: View {
                 TextField("Branch", text: $branch)
                 TextField("Base (optional)", text: $base)
                 Toggle("Create branch", isOn: $createBranch)
+                    .focusable()
             }
 
             if let errorText, !errorText.isEmpty {

@@ -137,6 +137,7 @@
 /dist/macos/ @ghostty-org/macos
 /pkg/apple-sdk/ @ghostty-org/macos
 /pkg/macos/ @ghostty-org/macos
+/.swiftlint.yml @ghostty-org/macos
 
 # Renderer
 /src/renderer.zig @ghostty-org/renderer

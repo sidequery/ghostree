@@ -56,6 +56,11 @@ extension Ghostty {
         #endif
 
         @EnvironmentObject private var ghostty: Ghostty.App
+        @Environment(\.ghosttyLastFocusedSurface) private var lastFocusedSurface
+
+        private var isFocusedSurface: Bool {
+            surfaceFocus || lastFocusedSurface?.value === surfaceView
+        }
 
         var body: some View {
             let center = NotificationCenter.default
@@ -217,10 +222,9 @@ extension Ghostty {
                 }
 
                 // If we're part of a split view and don't have focus, we put a semi-transparent
-                // rectangle above our view to make it look unfocused. We use "surfaceFocus"
-                // because we want to keep our focused surface dark even if we don't have window
-                // focus.
-                if isSplit && !surfaceFocus {
+                // rectangle above our view to make it look unfocused. We include the last
+                // focused surface so this still works while SwiftUI focus is temporarily nil.
+                if isSplit && !isFocusedSurface {
                     let overlayOpacity = ghostty.config.unfocusedSplitOpacity
                     if overlayOpacity > 0 {
                         Rectangle()
@@ -454,18 +458,18 @@ extension Ghostty {
                         guard let surface = surfaceView.surface else { return }
                         let action = "navigate_search:next"
                         ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8)))
-                    }) {
+                    }, label: {
                         Image(systemName: "chevron.up")
-                    }
+                    })
                     .buttonStyle(SearchButtonStyle())
 
                     Button(action: {
                         guard let surface = surfaceView.surface else { return }
                         let action = "navigate_search:previous"
                         ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8)))
-                    }) {
+                    }, label: {
                         Image(systemName: "chevron.down")
-                    }
+                    })
                     .buttonStyle(SearchButtonStyle())
 
                     Button(action: onClose) {
@@ -1201,16 +1205,32 @@ private struct GhosttySurfaceViewKey: EnvironmentKey {
     static let defaultValue: Ghostty.SurfaceView? = nil
 }
 
+private struct GhosttyLastFocusedSurfaceKey: EnvironmentKey {
+    /// Optional read-only last-focused surface reference. If a surface view is currently focused this
+    /// is equal to the currently focused surface.
+    static let defaultValue: Weak<Ghostty.SurfaceView>? = nil
+}
+
 extension EnvironmentValues {
     var ghosttySurfaceView: Ghostty.SurfaceView? {
         get { self[GhosttySurfaceViewKey.self] }
         set { self[GhosttySurfaceViewKey.self] = newValue }
+    }
+
+    var ghosttyLastFocusedSurface: Weak<Ghostty.SurfaceView>? {
+        get { self[GhosttyLastFocusedSurfaceKey.self] }
+        set { self[GhosttyLastFocusedSurfaceKey.self] = newValue }
     }
 }
 
 extension View {
     func ghosttySurfaceView(_ surfaceView: Ghostty.SurfaceView?) -> some View {
         environment(\.ghosttySurfaceView, surfaceView)
+    }
+
+    /// The most recently focused surface (can be currently focused if the surface is currently focused).
+    func ghosttyLastFocusedSurface(_ surfaceView: Weak<Ghostty.SurfaceView>?) -> some View {
+        environment(\.ghosttyLastFocusedSurface, surfaceView)
     }
 }
 

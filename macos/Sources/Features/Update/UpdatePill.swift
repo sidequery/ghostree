@@ -47,7 +47,7 @@ struct UpdatePill: View {
             } else {
                 showPopover.toggle()
             }
-        }) {
+        }, label: {
             HStack(spacing: 6) {
                 UpdateBadge(model: model)
                     .frame(width: 14, height: 14)
@@ -66,7 +66,7 @@ struct UpdatePill: View {
             )
             .foregroundColor(model.foregroundColor)
             .contentShape(Capsule())
-        }
+        })
         .buttonStyle(.plain)
         .help(model.text)
         .accessibilityLabel(model.text)

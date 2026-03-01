@@ -239,10 +239,9 @@ struct GHClient {
         }
 
         // Find gh executable
-        for path in ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "/usr/bin/gh"] {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return Invocation(executableURL: URL(fileURLWithPath: path), arguments: args, environment: env)
-            }
+        for path in ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "/usr/bin/gh"]
+            where FileManager.default.isExecutableFile(atPath: path) {
+            return Invocation(executableURL: URL(fileURLWithPath: path), arguments: args, environment: env)
         }
 
         // Fall back to PATH resolution

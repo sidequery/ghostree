@@ -295,14 +295,13 @@ final class GitDiffStore {
             }
         }
 
-        for path in ["/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"] {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return GitInvocation(
-                    executableURL: URL(fileURLWithPath: path),
-                    arguments: args,
-                    environment: env
-                )
-            }
+        for path in ["/opt/homebrew/bin/git", "/usr/local/bin/git", "/usr/bin/git"]
+            where FileManager.default.isExecutableFile(atPath: path) {
+            return GitInvocation(
+                executableURL: URL(fileURLWithPath: path),
+                arguments: args,
+                environment: env
+            )
         }
 
         let envURL = URL(fileURLWithPath: "/usr/bin/env")

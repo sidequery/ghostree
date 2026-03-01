@@ -76,6 +76,7 @@ struct PRStatus: Identifiable, Equatable {
         return .pending
     }
 
+    // swiftlint:disable:next large_tuple
     var checkCounts: (passed: Int, failed: Int, pending: Int, skipped: Int) {
         var passed = 0, failed = 0, pending = 0, skipped = 0
         for check in checks {

@@ -210,6 +210,7 @@ struct GitDiffSidebarView: View {
         }
     }
 
+    // swiftlint:disable:next large_tuple
     private var diffSummary: (files: Int, additions: Int, deletions: Int, unresolved: Int)? {
         guard let doc = state.document else { return nil }
         let adds = doc.files.reduce(0) { $0 + $1.additions }

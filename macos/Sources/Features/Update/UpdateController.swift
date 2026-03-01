@@ -158,10 +158,8 @@ enum InstallChannel {
             "/opt/homebrew/Caskroom/ghostree",
             "/usr/local/Caskroom/ghostree",
         ]
-        for path in caskroomPaths {
-            if FileManager.default.fileExists(atPath: path) {
-                return .homebrew
-            }
+        for path in caskroomPaths where FileManager.default.fileExists(atPath: path) {
+            return .homebrew
         }
 
         return .manual

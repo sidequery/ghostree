@@ -1659,14 +1659,13 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
               let appDelegate = NSApp.delegate as? AppDelegate else { return }
 
         let store = appDelegate.worktrunkStore
-        for repo in store.repositories {
-            if store.worktrees(for: repo.id).contains(where: { $0.path == rootPath }) {
-                let newSelection = SidebarSelection.worktree(repoID: repo.id, path: rootPath)
-                guard worktrunkSidebarState.selection != newSelection else { return }
-                applySyncedWorktrunkSidebarSelection(newSelection)
-                syncWorktrunkSidebarSelectionToTabGroup(newSelection)
-                return
-            }
+        for repo in store.repositories
+            where store.worktrees(for: repo.id).contains(where: { $0.path == rootPath }) {
+            let newSelection = SidebarSelection.worktree(repoID: repo.id, path: rootPath)
+            guard worktrunkSidebarState.selection != newSelection else { return }
+            applySyncedWorktrunkSidebarSelection(newSelection)
+            syncWorktrunkSidebarSelectionToTabGroup(newSelection)
+            return
         }
     }
 

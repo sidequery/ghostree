@@ -98,10 +98,9 @@ struct WorktrunkClient {
             return Invocation(executableURL: url, arguments: args, environment: env)
         }
 
-        for path in wtExecutableCandidatePaths() {
-            if FileManager.default.isExecutableFile(atPath: path) {
-                return Invocation(executableURL: URL(fileURLWithPath: path), arguments: args, environment: env)
-            }
+        for path in wtExecutableCandidatePaths()
+            where FileManager.default.isExecutableFile(atPath: path) {
+            return Invocation(executableURL: URL(fileURLWithPath: path), arguments: args, environment: env)
         }
 
         // Last resort: rely on PATH resolution.

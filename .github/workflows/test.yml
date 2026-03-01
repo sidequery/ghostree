@@ -15,8 +15,7 @@ jobs:
   # are other fast skip conditions, and add it as an output. Then modify
   # other tests `needs/if` to check them. Document the outputs.
   skip:
-    if: github.repository == 'ghostty-org/ghostty'
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     outputs:
       # 'true' when all changed files are non-code (e.g. only VOUCHED.td),
       # signaling that all other jobs can be skipped entirely.
@@ -80,7 +79,7 @@ jobs:
   required:
     name: "Required Checks: Test"
     if: always()
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     needs:
       - skip
       - build-bench
@@ -138,21 +137,15 @@ jobs:
 
   build-bench:
     # We build benchmarks on large because it uses ReleaseFast
-    runs-on: namespace-profile-ghostty-lg
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -181,21 +174,15 @@ jobs:
             zig-vt-stream,
           ]
     name: Example ${{ matrix.dir }}
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -214,21 +201,15 @@ jobs:
   build-flatpak:
     strategy:
       fail-fast: false
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -248,21 +229,15 @@ jobs:
   build-snap:
     strategy:
       fail-fast: false
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -292,21 +267,15 @@ jobs:
             x86_64-windows,
             wasm32-freestanding,
           ]
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -328,22 +297,15 @@ jobs:
     strategy:
       matrix:
         target: [aarch64-macos, x86_64-macos, aarch64-ios]
-    runs-on: namespace-profile-ghostty-macos-tahoe
+    runs-on: macos-latest
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /Users/runner/zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /Users/runner/zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          cache: |
-            xcode
-          path: |
-            /Users/runner/zig
 
       # TODO(tahoe): https://github.com/NixOS/nix/issues/13342
       - uses: DeterminateSystems/nix-installer-action@main
@@ -368,22 +330,16 @@ jobs:
       matrix:
         target:
           [aarch64-linux-android, x86_64-linux-android, arm-linux-androideabi]
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
       ANDROID_NDK_VERSION: r29
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -414,22 +370,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [namespace-profile-ghostty-md, namespace-profile-ghostty-md-arm64]
+        os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -444,21 +394,15 @@ jobs:
         run: nix develop -c zig build
 
   build-linux-libghostty:
-    runs-on: namespace-profile-ghostty-md
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -476,22 +420,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [namespace-profile-ghostty-md, namespace-profile-ghostty-md-arm64]
+        os: [ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -521,23 +459,17 @@ jobs:
         run: nm result/bin/.ghostty-wrapped 2>&1 | grep -q 'main_ghostty.main'
 
   build-dist:
-    runs-on: namespace-profile-ghostty-md
+    runs-on: ubuntu-24.04
     needs: test
     outputs:
       artifact-id: ${{ steps.upload-artifact.outputs.artifact-id }}
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -564,7 +496,7 @@ jobs:
 
   trigger-snap:
     if: github.event_name != 'pull_request'
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     needs: [build-dist, build-snap]
     steps:
       - name: Checkout code
@@ -582,7 +514,7 @@ jobs:
 
   trigger-flatpak:
     if: github.event_name != 'pull_request'
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     needs: [build-dist, build-flatpak]
     steps:
       - name: Checkout code
@@ -599,22 +531,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
-    runs-on: namespace-profile-ghostty-macos-tahoe
+    runs-on: macos-latest
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /Users/runner/zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /Users/runner/zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          cache: |
-            xcode
-          path: |
-            /Users/runner/zig
 
       # TODO(tahoe): https://github.com/NixOS/nix/issues/13342
       - uses: DeterminateSystems/nix-installer-action@main
@@ -659,22 +584,15 @@ jobs:
             COMPILATION_CACHE_KEEP_CAS_DIRECTORY=YES
 
   build-macos-freetype:
-    runs-on: namespace-profile-ghostty-macos-tahoe
+    runs-on: macos-latest
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /Users/runner/zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /Users/runner/zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          cache: |
-            xcode
-          path: |
-            /Users/runner/zig
 
       # TODO(tahoe): https://github.com/NixOS/nix/issues/13342
       - uses: DeterminateSystems/nix-installer-action@main
@@ -773,14 +691,14 @@ jobs:
         run: Get-Content -Path ".\build.log"
 
   test:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true'
+    if: needs.skip.outputs.skip != 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-md
+    runs-on: ubuntu-24.04
     outputs:
       zig_version: ${{ steps.zig.outputs.version }}
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -790,12 +708,6 @@ jobs:
         run: |
           echo "version=$(sed -n -E 's/^\s*\.?minimum_zig_version\s*=\s*"([^"]+)".*/\1/p' build.zig.zon)" >> $GITHUB_OUTPUT
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -823,21 +735,15 @@ jobs:
         x11: ["true", "false"]
         wayland: ["true", "false"]
     name: GTK x11=${{ matrix.x11 }} wayland=${{ matrix.wayland }}
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -871,21 +777,15 @@ jobs:
       matrix:
         simd: ["true", "false"]
     name: Build -Dsimd=${{ matrix.simd }}
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -906,21 +806,15 @@ jobs:
       matrix:
         sentry: ["true", "false"]
     name: Build -Dsentry=${{ matrix.sentry }}
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -936,22 +830,15 @@ jobs:
           nix develop -c zig build -Dsentry=${{ matrix.sentry }}
 
   test-macos:
-    runs-on: namespace-profile-ghostty-macos-tahoe
+    runs-on: macos-latest
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /Users/runner/zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /Users/runner/zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          cache: |
-            xcode
-          path: |
-            /Users/runner/zig
 
       # TODO(tahoe): https://github.com/NixOS/nix/issues/13342
       - uses: DeterminateSystems/nix-installer-action@main
@@ -981,21 +868,15 @@ jobs:
       matrix:
         i18n: ["true", "false"]
     name: Build -Di18n=${{ matrix.i18n }}
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -1011,21 +892,15 @@ jobs:
           nix develop -c zig build -Di18n=${{ matrix.i18n }}
 
   zig-fmt:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true' && needs.skip.outputs.zig == 'true'
+    if: needs.skip.outputs.skip != 'true' && needs.skip.outputs.zig == 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1040,23 +915,17 @@ jobs:
 
   pinact:
     name: "GitHub Actions Pins"
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true' && needs.skip.outputs.actions_pins == 'true'
+    if: needs.skip.outputs.skip != 'true' && needs.skip.outputs.actions_pins == 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1072,21 +941,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   prettier:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true'
+    if: needs.skip.outputs.skip != 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1100,20 +963,13 @@ jobs:
         run: nix develop -c prettier --check .
 
   swiftlint:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true' && needs.skip.outputs.macos == 'true'
-    runs-on: namespace-profile-ghostty-macos-tahoe
+    if: needs.skip.outputs.skip != 'true' && needs.skip.outputs.macos == 'true'
+    runs-on: macos-latest
     needs: skip
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          cache: |
-            xcode
-          path: |
-            /Users/runner/zig
 
       # TODO(tahoe): https://github.com/NixOS/nix/issues/13342
       - uses: DeterminateSystems/nix-installer-action@main
@@ -1130,21 +986,15 @@ jobs:
         run: nix develop -c swiftlint lint --strict
 
   alejandra:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true' && needs.skip.outputs.nix == 'true'
+    if: needs.skip.outputs.skip != 'true' && needs.skip.outputs.nix == 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1158,21 +1008,15 @@ jobs:
         run: nix develop -c alejandra --check .
 
   typos:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true'
+    if: needs.skip.outputs.skip != 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1186,21 +1030,15 @@ jobs:
         run: nix develop -c typos
 
   shellcheck:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true' && needs.skip.outputs.shell == 'true'
+    if: needs.skip.outputs.skip != 'true' && needs.skip.outputs.shell == 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1219,21 +1057,15 @@ jobs:
             $(find . \( -name "*.sh" -o -name "*.bash" \) -type f ! -path "./zig-out/*" ! -path "./macos/build/*" ! -path "./.git/*" | sort)
 
   translations:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true'
+    if: needs.skip.outputs.skip != 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1247,21 +1079,15 @@ jobs:
         run: nix develop -c .github/scripts/check-translations.sh
 
   blueprint-compiler:
-    if: github.repository == 'ghostty-org/ghostty' && needs.skip.outputs.skip != 'true' && needs.skip.outputs.blueprints == 'true'
+    if: needs.skip.outputs.skip != 'true' && needs.skip.outputs.blueprints == 'true'
     needs: skip
-    runs-on: namespace-profile-ghostty-xsm
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           nix_path: nixpkgs=channel:nixos-unstable
@@ -1282,21 +1108,15 @@ jobs:
       matrix:
         pkg: ["wuffs"]
     name: Test pkg/${{ matrix.pkg }}
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
@@ -1313,16 +1133,12 @@ jobs:
 
   test-debian-13:
     name: Test build on Debian 13
-    runs-on: namespace-profile-ghostty-sm
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [test, build-dist]
+    permissions:
+      contents: read
     steps:
-      - name: Install and configure Namespace CLI
-        uses: namespacelabs/nscloud-setup@f378676225212387f1283f4da878712af2c4cd60 # v0.0.11
-
-      - name: Configure Namespace powered Buildx
-        uses: namespacelabs/nscloud-setup-buildx-action@f5814dcf37a16cce0624d5bec2ab879654294aa0 # v0.0.22
-
       - name: Download Source Tarball Artifacts
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -1333,32 +1149,24 @@ jobs:
           mkdir dist
           tar --verbose --extract --strip-components 1 --directory dist --file ghostty-source.tar.gz
 
-      - name: Build and push
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
-        with:
-          context: dist
-          file: dist/src/build/docker/debian/Dockerfile
-          build-args: |
-            DISTRO_VERSION=13
+      - name: Build Debian 13 container
+        run: |
+          docker build \
+            --file dist/src/build/docker/debian/Dockerfile \
+            --build-arg DISTRO_VERSION=13 \
+            dist
 
   valgrind:
-    if: github.repository == 'ghostty-org/ghostty'
-    runs-on: namespace-profile-ghostty-lg
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     needs: test
     env:
-      ZIG_LOCAL_CACHE_DIR: /zig/local-cache
-      ZIG_GLOBAL_CACHE_DIR: /zig/global-cache
+      ZIG_LOCAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/local
+      ZIG_GLOBAL_CACHE_DIR: ${{ github.workspace }}/.zig-cache/global
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Setup Cache
-        uses: namespacelabs/nscloud-cache-action@a90bb5d4b27522ce881c6e98eebd7d7e6d1653f9 # v1.4.2
-        with:
-          path: |
-            /nix
-            /zig
 
       # Install Nix and use that to run our tests so our environment matches exactly.
       - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1

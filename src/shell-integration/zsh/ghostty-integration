@@ -110,6 +110,9 @@ _ghostty_deferred_init() {
             if (( $+functions[codex] == 0 )); then
                 codex() { command "$GHOSTREE_AGENT_BIN_DIR/codex" "$@"; }
             fi
+            if (( $+functions[agent] == 0 )); then
+                agent() { command "$GHOSTREE_AGENT_BIN_DIR/agent" "$@"; }
+            fi
         fi
 
         # Don't write OSC 133 D when our precmd handler is invoked from zle.

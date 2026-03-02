@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A5B30530299BEAAA0047F10C"
-               BuildableName = "Ghostree.app"
-               BlueprintName = "Ghostree"
+               BuildableName = "Ghostty.app"
+               BlueprintName = "Ghostty"
                ReferencedContainer = "container:Ghostty.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -68,8 +68,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A5B30530299BEAAA0047F10C"
-            BuildableName = "Ghostree.app"
-            BlueprintName = "Ghostree"
+            BuildableName = "Ghostty.app"
+            BlueprintName = "Ghostty"
             ReferencedContainer = "container:Ghostty.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -98,8 +98,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A5B30530299BEAAA0047F10C"
-            BuildableName = "Ghostree.app"
-            BlueprintName = "Ghostree"
+            BuildableName = "Ghostty.app"
+            BlueprintName = "Ghostty"
             ReferencedContainer = "container:Ghostty.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

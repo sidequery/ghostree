@@ -46,6 +46,10 @@ enum AgentStatusPaths {
         binDir.appendingPathComponent("codex")
     }
 
+    static var copilotCliWrapperPath: URL {
+        binDir.appendingPathComponent("copilot")
+    }
+
     static var opencodePluginMarker: String { "// Ghostree opencode plugin v5" }
 
     /** @see https://opencode.ai/docs/plugins */

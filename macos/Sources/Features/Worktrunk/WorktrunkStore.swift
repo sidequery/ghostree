@@ -4,12 +4,14 @@ enum SessionSource: String, Codable {
     case claude
     case codex
     case opencode
+    case copilotCli
 
     var icon: String {
         switch self {
         case .claude: return "terminal"
         case .codex: return "sparkles"
         case .opencode: return "terminal"
+        case .copilotCli: return "terminal"
         }
     }
 
@@ -18,6 +20,7 @@ enum SessionSource: String, Codable {
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
+        case .copilotCli: return "Copilot"
         }
     }
 }
@@ -126,6 +129,7 @@ struct SessionIndex: Codable {
     var claude: [String: SessionIndexEntry] = [:]
     var codex: [String: SessionIndexEntry] = [:]
     var opencode: [String: OpenCodeIndexEntry] = [:]
+    var copilotCli: [String: SessionIndexEntry] = [:]
 }
 
 final class SessionIndexManager {
@@ -1378,6 +1382,7 @@ final class WorktrunkStore: ObservableObject {
         var seenClaudePaths = Set<String>()
         var seenCodexPaths = Set<String>()
         var seenOpenCodePaths = Set<String>()
+        var seenCopilotCliPaths = Set<String>()
         var openCodeSlugToWorktreePath: [String: String] = [:]
 
         for path in validWorktreePaths {
@@ -1715,6 +1720,85 @@ final class WorktrunkStore: ObservableObject {
 
         index.opencode = index.opencode.filter { seenOpenCodePaths.contains($0.key) }
 
+        // Scan Copilot CLI sessions
+        let copilotCliSessionsDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".copilot/session-state")
+
+        if FileManager.default.fileExists(atPath: copilotCliSessionsDir.path),
+           let sessionDirs = try? FileManager.default.contentsOfDirectory(
+               at: copilotCliSessionsDir,
+               includingPropertiesForKeys: [.isDirectoryKey]
+           ) {
+            for sessionDir in sessionDirs {
+                let isDirectory = (try? sessionDir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+                guard isDirectory else { continue }
+
+                let eventsFile = sessionDir.appendingPathComponent("events.jsonl")
+                guard FileManager.default.fileExists(atPath: eventsFile.path) else { continue }
+
+                seenCopilotCliPaths.insert(eventsFile.path)
+                guard let attrs = fileAttributes(for: eventsFile) else { continue }
+                let cached = index.copilotCli[eventsFile.path]
+
+                if let cached,
+                   cached.fileMtime == attrs.mtime,
+                   cached.fileSize == attrs.size {
+                    if let worktreePath = resolveWorktreePath(
+                        cachedPath: cached.worktreePath,
+                        cwd: cached.cwd,
+                        validWorktreePaths: validWorktreePaths
+                    ) {
+                        let session = AISession(
+                            id: cached.sessionId,
+                            source: .copilotCli,
+                            worktreePath: worktreePath,
+                            cwd: cached.cwd,
+                            timestamp: cached.timestamp,
+                            snippet: cached.snippet,
+                            sourcePath: eventsFile.path,
+                            messageCount: cached.messageCount
+                        )
+                        noteSession(session, worktreePath: worktreePath)
+                        if cached.worktreePath != worktreePath {
+                            var updated = cached
+                            updated.worktreePath = worktreePath
+                            index.copilotCli[eventsFile.path] = updated
+                        }
+                    }
+                    continue
+                }
+
+                if var session = parseCopilotCliSession(sessionDir) {
+                    if let worktreePath = resolveWorktreePath(
+                        cachedPath: nil,
+                        cwd: session.cwd,
+                        validWorktreePaths: validWorktreePaths
+                    ) {
+                        session.worktreePath = worktreePath
+                        noteSession(session, worktreePath: worktreePath)
+                        index.copilotCli[eventsFile.path] = SessionIndexEntry(
+                            sessionId: session.id,
+                            cwd: session.cwd,
+                            timestamp: session.timestamp,
+                            snippet: session.snippet,
+                            messageCount: session.messageCount,
+                            worktreePath: worktreePath,
+                            fileMtime: attrs.mtime,
+                            fileSize: attrs.size
+                        )
+                    } else {
+                        index.copilotCli[eventsFile.path] = nil
+                    }
+                } else {
+                    index.copilotCli[eventsFile.path] = nil
+                }
+            }
+        } else {
+            index.copilotCli = [:]
+        }
+
+        index.copilotCli = index.copilotCli.filter { seenCopilotCliPaths.contains($0.key) }
+
         // Final sort and single publish
         sortDirtySessions()
 
@@ -1965,6 +2049,133 @@ final class WorktrunkStore: ObservableObject {
             timestamp: ts,
             snippet: snippet,
             sourcePath: url.path,
+            messageCount: messageCount
+        )
+    }
+
+    // MARK: - Copilot CLI Sessions
+
+    private func parseCopilotCliWorkspaceYaml(_ url: URL) -> (id: String, cwd: String, summary: String?)? {
+        guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        var id: String?
+        var cwd: String?
+        var summary: String?
+
+        for line in content.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let colonIdx = trimmed.firstIndex(of: ":") {
+                let key = String(trimmed[trimmed.startIndex..<colonIdx]).trimmingCharacters(in: .whitespaces)
+                let value = String(trimmed[trimmed.index(after: colonIdx)...]).trimmingCharacters(in: .whitespaces)
+                if value.isEmpty { continue }
+                switch key {
+                case "id": id = value
+                case "cwd": cwd = value
+                case "summary": summary = value
+                default: break
+                }
+            }
+        }
+
+        guard let id, let cwd else { return nil }
+        return (id, cwd, summary)
+    }
+
+    private func parseCopilotCliSession(_ sessionDir: URL) -> AISession? {
+        let workspaceFile = sessionDir.appendingPathComponent("workspace.yaml")
+        let eventsFile = sessionDir.appendingPathComponent("events.jsonl")
+
+        guard let workspace = parseCopilotCliWorkspaceYaml(workspaceFile) else { return nil }
+
+        let eventsURL = eventsFile
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: eventsURL.path),
+              let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970 else { return nil }
+        let size = Int64((attrs[.size] as? UInt64) ?? (attrs[.size] as? Int).map { UInt64($0) } ?? 0)
+
+        // Check cache
+        if let cached = sessionCache.get(eventsURL.path),
+           sessionCache.isCacheValid(entry: cached, mtime: mtime, size: size) {
+            return AISession(
+                id: cached.sessionId,
+                source: .copilotCli,
+                worktreePath: "",
+                cwd: cached.cwd,
+                timestamp: cached.timestamp,
+                snippet: cached.snippet,
+                sourcePath: eventsURL.path,
+                messageCount: cached.messageCount
+            )
+        }
+
+        // Parse events.jsonl
+        guard let handle = try? FileHandle(forReadingFrom: eventsURL) else { return nil }
+        defer { try? handle.close() }
+
+        var timestamp: Date?
+        var snippet: String?
+        var messageCount = 0
+
+        let data = handle.readData(ofLength: 50_000)
+        let content = String(data: data, encoding: .utf8) ?? ""
+
+        for line in content.components(separatedBy: "\n").prefix(200) {
+            guard !line.isEmpty,
+                  let lineData = line.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] else { continue }
+
+            if let ts = json["timestamp"] as? String, let parsed = parseRFC3339(ts) {
+                timestamp = parsed
+            }
+
+            let entryType = json["type"] as? String
+            if entryType == "user.message",
+               let eventData = json["data"] as? [String: Any] {
+                messageCount += 1
+                if snippet == nil, let text = eventData["content"] as? String {
+                    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        snippet = String(trimmed.prefix(60))
+                    }
+                }
+            }
+        }
+
+        // For large files, count remaining user messages and get last timestamp
+        if size > 50_000 {
+            messageCount += grepCountUserMessages(url: eventsURL, pattern: "\"type\":\"user.message\"", skipBytes: 50_000)
+            if let tailTs = lastTimestampFromTail(url: eventsURL, fileSize: size) {
+                timestamp = tailTs
+            }
+        }
+
+        // Use workspace summary as snippet if events didn't yield one
+        if snippet == nil, let summary = workspace.summary, !summary.isEmpty {
+            snippet = String(summary.prefix(60))
+        }
+
+        let ts = timestamp ?? Date.distantPast
+
+        // Update cache
+        let cacheEntry = SessionCacheEntry(
+            sessionId: workspace.id,
+            source: "copilotCli",
+            cwd: workspace.cwd,
+            timestamp: ts,
+            snippet: snippet,
+            messageCount: messageCount,
+            lastParsedOffset: Int64(size),
+            fileMtime: mtime,
+            fileSize: size
+        )
+        sessionCache.set(eventsURL.path, cacheEntry)
+
+        return AISession(
+            id: workspace.id,
+            source: .copilotCli,
+            worktreePath: "",
+            cwd: workspace.cwd,
+            timestamp: ts,
+            snippet: snippet,
+            sourcePath: eventsURL.path,
             messageCount: messageCount
         )
     }

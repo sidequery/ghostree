@@ -51,6 +51,12 @@ enum AgentHookInstaller {
             marker: wrapperMarker,
             content: buildCodexWrapper()
         )
+        ensureFile(
+            url: AgentStatusPaths.copilotCliWrapperPath,
+            mode: 0o755,
+            marker: wrapperMarker,
+            content: buildCopilotCliWrapper()
+        )
 
         ensureFile(
             url: AgentStatusPaths.opencodeGlobalPluginPath,
@@ -292,6 +298,61 @@ enum AgentHookInstaller {
           >> "${GHOSTREE_AGENT_EVENTS_DIR:-\(eventsDir)}/agent-events.jsonl" 2>/dev/null
 
         exec "$REAL_BIN" -c 'notify=["bash","\(notifyPath)"]' "$@"
+        """
+    }
+
+    private static func buildCopilotCliWrapper() -> String {
+        let binDir = AgentStatusPaths.binDir.path
+        let eventsDir = AgentStatusPaths.eventsCacheDir.path
+        return """
+        #!/bin/bash
+        \(wrapperMarker)
+        # Wrapper for Copilot CLI: emits Start/Stop lifecycle events.
+
+        \(pathAugmentSnippet())
+
+        find_real_binary() {
+          local name="$1"
+          local IFS=:
+          for dir in $PATH; do
+            [ -z "$dir" ] && continue
+            dir="${dir%/}"
+            if [ "$dir" = "\(binDir)" ]; then
+              continue
+            fi
+            if [ -x "$dir/$name" ] && [ ! -d "$dir/$name" ]; then
+              printf "%s\\n" "$dir/$name"
+              return 0
+            fi
+          done
+          return 1
+        }
+
+        REAL_BIN="$(find_real_binary "copilot")"
+        if [ -z "$REAL_BIN" ]; then
+          echo "Ghostree: copilot not found in PATH. Install it and ensure it is on PATH, then retry." >&2
+          exit 127
+        fi
+
+        _EVENTS_DIR="${GHOSTREE_AGENT_EVENTS_DIR:-\(eventsDir)}"
+
+        # Emit synthetic Start event
+        printf '{\"timestamp\":\"%s\",\"eventType\":\"Start\",\"cwd\":\"%s\"}\\n' \\
+          "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \\
+          "$(pwd -P 2>/dev/null || pwd)" \\
+          >> "$_EVENTS_DIR/agent-events.jsonl" 2>/dev/null
+
+        # Run copilot and capture exit code
+        "$REAL_BIN" "$@"
+        _EXIT=$?
+
+        # Emit synthetic Stop event
+        printf '{\"timestamp\":\"%s\",\"eventType\":\"Stop\",\"cwd\":\"%s\"}\\n' \\
+          "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" \\
+          "$(pwd -P 2>/dev/null || pwd)" \\
+          >> "$_EVENTS_DIR/agent-events.jsonl" 2>/dev/null
+
+        exit $_EXIT
         """
     }
 

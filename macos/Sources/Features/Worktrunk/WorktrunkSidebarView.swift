@@ -194,7 +194,7 @@ struct WorktrunkSidebarView: View {
                 )
             }
             clearSelectionIfMainInFlatMode()
-            Task { await store.refreshAll() }
+            Task { await store.refreshForSidebarAppearIfNeeded() }
         }
         .alert(
             "Remove Repository?",

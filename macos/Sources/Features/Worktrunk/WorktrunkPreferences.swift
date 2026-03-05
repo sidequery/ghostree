@@ -56,7 +56,8 @@ enum WorktrunkAgent: String, CaseIterable, Identifiable {
 
     private static func searchPaths(excluding excludedPath: String) -> [String] {
         var paths: [String] = []
-        let prefix = ["/opt/homebrew/bin", "/usr/local/bin"]
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let prefix = ["/opt/homebrew/bin", "/usr/local/bin", "\(home)/.opencode/bin"]
         let existingPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
         let existingComponents = existingPath.split(separator: ":").map(String.init)
 

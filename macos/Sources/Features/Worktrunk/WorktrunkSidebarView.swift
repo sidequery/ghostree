@@ -982,7 +982,7 @@ private struct WorktreeTabRowLabel: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text(worktree.branch)
                             .lineLimit(1)
-                            .fontWeight(tab.isActive ? .semibold : .regular)
+                            .fontWeight(.regular)
                         if let repoName {
                             let recencyDate = store.recencyDate(for: worktree.path)
                             if displaySessionTimeEnabled, let recencyDate {

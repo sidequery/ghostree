@@ -59,6 +59,13 @@ enum AgentHookInstaller {
         )
 
         ensureFile(
+            url: AgentStatusPaths.opencodeWrapperPath,
+            mode: 0o755,
+            marker: wrapperMarker,
+            content: buildOpenCodeWrapper()
+        )
+
+        ensureFile(
             url: AgentStatusPaths.opencodeGlobalPluginPath,
             mode: 0o644,
             marker: AgentStatusPaths.opencodePluginMarker,
@@ -209,7 +216,7 @@ enum AgentHookInstaller {
         if [ -x /usr/libexec/path_helper ]; then
           eval "$(/usr/libexec/path_helper -s)" 2>/dev/null
         fi
-        for _d in "$HOME/.local/bin" "$HOME/.bun/bin" "/opt/homebrew/bin" "/opt/homebrew/sbin" "/usr/local/bin" "$HOME/.cargo/bin"; do
+        for _d in "$HOME/.local/bin" "$HOME/.bun/bin" "$HOME/.opencode/bin" "/opt/homebrew/bin" "/opt/homebrew/sbin" "/usr/local/bin" "$HOME/.cargo/bin"; do
           if [ -d "$_d" ]; then
             case ":$PATH:" in
               *":$_d:"*) ;;
@@ -353,6 +360,42 @@ enum AgentHookInstaller {
           >> "$_EVENTS_DIR/agent-events.jsonl" 2>/dev/null
 
         exit $_EXIT
+        """
+    }
+
+    private static func buildOpenCodeWrapper() -> String {
+        let binDir = AgentStatusPaths.binDir.path
+        return """
+        #!/bin/bash
+        \(wrapperMarker)
+        # Wrapper for OpenCode: ensures PATH includes common install locations.
+
+        \(pathAugmentSnippet())
+
+        find_real_binary() {
+          local name="$1"
+          local IFS=:
+          for dir in $PATH; do
+            [ -z "$dir" ] && continue
+            dir="${dir%/}"
+            if [ "$dir" = "\(binDir)" ]; then
+              continue
+            fi
+            if [ -x "$dir/$name" ] && [ ! -d "$dir/$name" ]; then
+              printf "%s\\n" "$dir/$name"
+              return 0
+            fi
+          done
+          return 1
+        }
+
+        REAL_BIN="$(find_real_binary "opencode")"
+        if [ -z "$REAL_BIN" ]; then
+          echo "Ghostree: opencode not found in PATH. Install it and ensure it is on PATH, then retry." >&2
+          exit 127
+        fi
+
+        exec "$REAL_BIN" "$@"
         """
     }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @State private var selectedSection: SettingsSection = .worktrunk
+    @State private var selectedSection: SettingsSection = .general
 
     var body: some View {
         NavigationSplitView(columnVisibility: .constant(.all)) {
@@ -32,26 +32,26 @@ private struct RemoveSidebarToggleModifier: ViewModifier {
 }
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case worktrunk
+    case general
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .worktrunk: return "Worktrunk"
+        case .general: return "General"
         }
     }
 
     var icon: String {
         switch self {
-        case .worktrunk: return "arrow.triangle.branch"
+        case .general: return "gearshape"
         }
     }
 
     @ViewBuilder
     var view: some View {
         switch self {
-        case .worktrunk: WorktrunkSettingsView()
+        case .general: WorktrunkSettingsView()
         }
     }
 }

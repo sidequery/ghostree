@@ -89,7 +89,7 @@ struct WorktrunkSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .navigationTitle("Worktrunk")
+        .navigationTitle("General")
         .onAppear {
             normalizeDefaultActionIfNeeded()
             checkGHAvailability()

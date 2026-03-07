@@ -14,6 +14,7 @@ struct TerminalWorkspaceView<ViewModel: TerminalViewModel>: View {
     let openWorktreeAgent: (String, WorktrunkAgent) -> Void
     let resumeSession: ((AISession) -> Void)?
     let focusNativeTab: (Int) -> Void
+    let closeNativeTab: (Int) -> Void
     let moveNativeTabBefore: (Int, Int) -> Void
     let moveNativeTabAfter: (Int, Int) -> Void
     let onSidebarWidthChange: (CGFloat) -> Void
@@ -36,6 +37,7 @@ struct TerminalWorkspaceView<ViewModel: TerminalViewModel>: View {
                 openWorktreeAgent: openWorktreeAgent,
                 resumeSession: resumeSession,
                 focusNativeTab: focusNativeTab,
+                closeNativeTab: closeNativeTab,
                 moveNativeTabBefore: moveNativeTabBefore,
                 moveNativeTabAfter: moveNativeTabAfter,
                 onSelectWorktree: { path in

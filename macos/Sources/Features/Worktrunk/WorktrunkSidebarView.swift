@@ -11,6 +11,7 @@ struct WorktrunkSidebarView: View {
     let openWorktreeAgent: (String, WorktrunkAgent) -> Void
     var resumeSession: ((AISession) -> Void)?
     let focusNativeTab: (Int) -> Void
+    let closeNativeTab: (Int) -> Void
     let moveNativeTabBefore: (Int, Int) -> Void
     let moveNativeTabAfter: (Int, Int) -> Void
     var onSelectWorktree: ((String?) -> Void)?
@@ -367,23 +368,27 @@ struct WorktrunkSidebarView: View {
                 defaultAction: defaultAction,
                 availableAgents: availableAgents,
                 alwaysVisibleWorktreePaths: alwaysVisibleWorktreePaths,
-                  focusNativeTab: focusNativeTab,
-                  moveBefore: moveBeforePreservingScroll,
-                  moveAfter: moveAfterPreservingScroll,
-                  windowNumberByWorktreePath: windowNumberByWorktreePath
-              )
-          }
+                focusNativeTab: focusNativeTab,
+                closeNativeTab: closeNativeTab,
+                onRemoveWorktree: { worktree in
+                    removeWorktreeConfirm = worktree
+                },
+                moveBefore: moveBeforePreservingScroll,
+                moveAfter: moveAfterPreservingScroll,
+                windowNumberByWorktreePath: windowNumberByWorktreePath
+            )
+        }
 
-          if let last = shownTabs.last?.tab {
-              Rectangle()
-                  .fill(Color.clear)
-                  .frame(maxWidth: .infinity)
-                  .frame(height: 1)
-                  .contentShape(Rectangle())
-                  .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                  .listRowSeparator(.hidden)
-                  .overlay(alignment: .center) {
-                      if sidebarTabsEndDropTarget {
+        if let last = shownTabs.last?.tab {
+            Rectangle()
+                .fill(Color.clear)
+                .frame(maxWidth: .infinity)
+                .frame(height: 1)
+                .contentShape(Rectangle())
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                .listRowSeparator(.hidden)
+                .overlay(alignment: .center) {
+                    if sidebarTabsEndDropTarget {
                         SidebarInsertionIndicatorLine()
                     }
                 }
@@ -870,6 +875,8 @@ private struct WorktreeTabDisclosureGroup: View {
     let availableAgents: [WorktrunkAgent]
     let alwaysVisibleWorktreePaths: Set<String>
     let focusNativeTab: (Int) -> Void
+    let closeNativeTab: (Int) -> Void
+    let onRemoveWorktree: (WorktrunkStore.Worktree) -> Void
     let moveBefore: (Int, Int) -> Void
     let moveAfter: (Int, Int) -> Void
     let windowNumberByWorktreePath: [String: Int]
@@ -926,6 +933,12 @@ private struct WorktreeTabDisclosureGroup: View {
                       sidebarState.selection = .worktree(repoID: worktree.repositoryID, path: worktree.path)
                       focusNativeTab(tab.windowNumber)
                   },
+                  onClose: {
+                      closeNativeTab(tab.windowNumber)
+                  },
+                  onRemoveWorktree: {
+                      onRemoveWorktree(worktree)
+                  },
                   onDropBefore: { moving in
                       guard moving != tab.windowNumber else { return }
                       moveBefore(moving, tab.windowNumber)
@@ -951,6 +964,8 @@ private struct WorktreeTabRowLabel: View {
     let openWorktree: (String) -> Void
     let openWorktreeAgent: (String, WorktrunkAgent) -> Void
     let onActivate: () -> Void
+    let onClose: () -> Void
+    let onRemoveWorktree: () -> Void
     let onDropBefore: (Int) -> Void
     let windowNumberByWorktreePath: [String: Int]
 
@@ -1083,6 +1098,18 @@ private struct WorktreeTabRowLabel: View {
         .overlay(alignment: .top) {
             if isDropTarget {
                 SidebarInsertionIndicatorLine()
+            }
+        }
+        .contextMenu {
+            Button("Close Tab") {
+                onClose()
+            }
+            Button("Remove Worktree…") {
+                onRemoveWorktree()
+            }
+            .disabled(worktree.isMain)
+            Button("Reveal in Finder") {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: worktree.path)])
             }
         }
         .onDrop(of: [UTType.fileURL.identifier], isTargeted: isDropTargetBinding) { providers in

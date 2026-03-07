@@ -895,6 +895,14 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         }
     }
 
+    private func closeNativeTab(windowNumber: Int) {
+        guard let window else { return }
+        guard let tabGroup = window.tabGroup else { return }
+        guard let targetWindow = tabGroup.windows.first(where: { $0.windowNumber == windowNumber }) else { return }
+        guard let targetController = targetWindow.windowController as? TerminalController else { return }
+        targetController.closeTab(nil)
+    }
+
     private func moveNativeTabBefore(movingWindowNumber: Int, targetWindowNumber: Int) {
         guard movingWindowNumber != targetWindowNumber else { return }
         guard let window else { return }
@@ -1457,6 +1465,9 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             },
             focusNativeTab: { [weak self] windowNumber in
                 self?.focusNativeTab(windowNumber: windowNumber)
+            },
+            closeNativeTab: { [weak self] windowNumber in
+                self?.closeNativeTab(windowNumber: windowNumber)
             },
             moveNativeTabBefore: { [weak self] moving, target in
                 self?.moveNativeTabBefore(movingWindowNumber: moving, targetWindowNumber: target)

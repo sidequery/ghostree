@@ -897,8 +897,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
     private func closeNativeTab(windowNumber: Int) {
         guard let window else { return }
-        guard let tabGroup = window.tabGroup else { return }
-        guard let targetWindow = tabGroup.windows.first(where: { $0.windowNumber == windowNumber }) else { return }
+        let candidateWindows = window.tabGroup?.windows ?? [window]
+        guard let targetWindow = candidateWindows.first(where: { $0.windowNumber == windowNumber }) else { return }
         guard let targetController = targetWindow.windowController as? TerminalController else { return }
         targetController.closeTab(nil)
     }

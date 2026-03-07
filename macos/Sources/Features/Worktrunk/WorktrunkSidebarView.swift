@@ -282,14 +282,16 @@ struct WorktrunkSidebarView: View {
         }()
         let topWorktreePaths = Set(worktreeTabs.compactMap(\.worktreeRootPath).map(standardizedPath))
         return List(selection: selection) {
-            if sidebarTabsEnabled {
-                sidebarTabsList(snapshot: snapshot, tabs: worktreeTabs)
-            }
+            Section {
+                if sidebarTabsEnabled {
+                    sidebarTabsList(snapshot: snapshot, tabs: worktreeTabs)
+                }
 
-            if store.sidebarListMode == .flatWorktrees {
-                flatWorktreeList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
-            } else {
-                nestedRepoList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
+                if store.sidebarListMode == .flatWorktrees {
+                    flatWorktreeList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
+                } else {
+                    nestedRepoList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
+                }
             }
         }
         .background(SidebarListScrollFinder(preserver: sidebarScrollPreserver))

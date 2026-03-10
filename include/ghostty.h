@@ -463,6 +463,12 @@ typedef struct {
 
 // Config types
 
+// config.Path
+typedef struct {
+  const char* path;
+  bool optional;
+} ghostty_config_path_s;
+
 // config.Color
 typedef struct {
   uint8_t r;
@@ -586,9 +592,9 @@ typedef enum {
 // apprt.action.Fullscreen
 typedef enum {
   GHOSTTY_FULLSCREEN_NATIVE,
-  GHOSTTY_FULLSCREEN_NON_NATIVE,
-  GHOSTTY_FULLSCREEN_NON_NATIVE_VISIBLE_MENU,
-  GHOSTTY_FULLSCREEN_NON_NATIVE_PADDED_NOTCH,
+  GHOSTTY_FULLSCREEN_MACOS_NON_NATIVE,
+  GHOSTTY_FULLSCREEN_MACOS_NON_NATIVE_VISIBLE_MENU,
+  GHOSTTY_FULLSCREEN_MACOS_NON_NATIVE_PADDED_NOTCH,
 } ghostty_action_fullscreen_e;
 
 // apprt.action.FloatWindow
@@ -718,7 +724,7 @@ typedef struct {
 
 // renderer.Health
 typedef enum {
-  GHOSTTY_RENDERER_HEALTH_OK,
+  GHOSTTY_RENDERER_HEALTH_HEALTHY,
   GHOSTTY_RENDERER_HEALTH_UNHEALTHY,
 } ghostty_action_renderer_health_e;
 

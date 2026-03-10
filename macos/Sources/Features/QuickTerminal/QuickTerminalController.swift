@@ -137,11 +137,9 @@ class QuickTerminalController: BaseTerminalController {
         }
 
         // Setup our content
-        window.contentView = TerminalViewContainer(
-            ghostty: self.ghostty,
-            viewModel: self,
-            delegate: self
-        )
+        window.contentView = TerminalViewContainer {
+            TerminalView(ghostty: ghostty, viewModel: self, delegate: self)
+        }
 
         // Clear out our frame at this point, the fixup from above is complete.
         if let qtWindow = window as? QuickTerminalWindow {
@@ -161,6 +159,8 @@ class QuickTerminalController: BaseTerminalController {
         // applies if we can be seen.
         guard visible else { return }
 
+        terminalGlassContainer?.updateGlassTintOverlay(isKeyWindow: true)
+
         // Re-hide the dock if we were hiding it before.
         hiddenDock?.hide()
     }
@@ -173,6 +173,8 @@ class QuickTerminalController: BaseTerminalController {
         // windowDidResignKey will also get called after animateOut so this
         // ensures we don't run logic twice.
         guard visible else { return }
+
+        terminalGlassContainer?.updateGlassTintOverlay(isKeyWindow: false)
 
         // We don't animate out if there is a modal sheet being shown currently.
         // This lets us show alerts without causing the window to disappear.
@@ -623,6 +625,8 @@ class QuickTerminalController: BaseTerminalController {
             window.isOpaque = true
             window.backgroundColor = .windowBackgroundColor
         }
+
+        terminalGlassContainer?.ghosttyConfigDidChange(ghostty.config, preferredBackgroundColor: nil)
     }
 
     private func showNoNewTabAlert() {
@@ -706,6 +710,8 @@ class QuickTerminalController: BaseTerminalController {
         self.derivedConfig = DerivedConfig(config)
 
         syncAppearance()
+
+        terminalGlassContainer?.ghosttyConfigDidChange(config, preferredBackgroundColor: nil)
     }
 
     @objc private func onNewTab(notification: SwiftUI.Notification) {

@@ -43,6 +43,11 @@ class TerminalWindow: NSWindow {
     private var titlebarFontTabBarObservation: NSKeyValueObservation?
     private var lastTitlebarFontState: TitlebarFontState?
     private var lastAppliedAppearance: AppearanceState?
+    /// Handles inline tab title editing for this host window.
+    private(set) lazy var tabTitleEditor = TabTitleEditor(
+        hostWindow: self,
+        delegate: self
+    )
 
     /// Whether this window supports the update accessory. If this is false, then views within this
     /// window should determine how to show update notifications.
@@ -218,7 +223,15 @@ class TerminalWindow: NSWindow {
     override var canBecomeKey: Bool { return true }
     override var canBecomeMain: Bool { return true }
 
+    override func sendEvent(_ event: NSEvent) {
+        if tabTitleEditor.handleMouseDown(event) {
+            return
+        }
+
+        super.sendEvent(event)
+    }
     override func close() {
+        tabTitleEditor.finishEditing(commit: true)
         NotificationCenter.default.post(name: Self.terminalWillCloseNotification, object: self)
         super.close()
     }
@@ -233,6 +246,7 @@ class TerminalWindow: NSWindow {
         super.resignKey()
         resetZoomTabButton.contentTintColor = .secondaryLabelColor
         updateWorktrunkToolbarTitle()
+        tabTitleEditor.finishEditing(commit: true)
     }
 
     override func becomeMain() {
@@ -267,7 +281,17 @@ class TerminalWindow: NSWindow {
 
     @discardableResult
     func beginInlineTabTitleEdit(for targetWindow: NSWindow) -> Bool {
-        false
+        tabTitleEditor.beginEditing(for: targetWindow)
+    }
+
+    @objc private func renameTabFromContextMenu(_ sender: NSMenuItem) {
+        let targetWindow = sender.representedObject as? NSWindow ?? self
+        if beginInlineTabTitleEdit(for: targetWindow) {
+            return
+        }
+
+        guard let targetController = targetWindow.windowController as? BaseTerminalController else { return }
+        targetController.promptTabTitle()
     }
 
     override func mergeAllWindows(_ sender: Any?) {
@@ -772,7 +796,7 @@ class TerminalWindow: NSWindow {
 
     private func setInitialWindowPosition(x: Int16?, y: Int16?) {
         // If we don't have an X/Y then we try to use the previously saved window pos.
-        guard x != nil, y != nil else {
+        guard let x = x, let y = y else {
             if !LastWindowPosition.shared.restore(self) {
                 center()
             }
@@ -786,14 +810,19 @@ class TerminalWindow: NSWindow {
             return
         }
 
-        // We have an X/Y, use our controller function to set it up.
-        guard let terminalController else {
-            center()
-            return
-        }
+        // Convert top-left coordinates to bottom-left origin using our utility extension
+        let origin = screen.origin(
+            fromTopLeftOffsetX: CGFloat(x),
+            offsetY: CGFloat(y),
+            windowSize: frame.size)
 
-        let frame = terminalController.adjustForWindowPosition(frame: frame, on: screen)
-        setFrameOrigin(frame.origin)
+        // Clamp the origin to ensure the window stays fully visible on screen
+        var safeOrigin = origin
+        let vf = screen.visibleFrame
+        safeOrigin.x = min(max(safeOrigin.x, vf.minX), vf.maxX - frame.width)
+        safeOrigin.y = min(max(safeOrigin.y, vf.minY), vf.maxY - frame.height)
+
+        setFrameOrigin(safeOrigin)
     }
 
     private func hideWindowButtons() {
@@ -1003,10 +1032,11 @@ extension TerminalWindow {
         separator.identifier = Self.tabColorSeparatorIdentifier
         menu.addItem(separator)
 
-        // Change Title...
-        let changeTitleItem = NSMenuItem(title: "Change Title...", action: #selector(BaseTerminalController.changeTabTitle(_:)), keyEquivalent: "")
+        // Rename Tab...
+        let changeTitleItem = NSMenuItem(title: "Rename Tab...", action: #selector(TerminalWindow.renameTabFromContextMenu(_:)), keyEquivalent: "")
         changeTitleItem.identifier = Self.changeTitleMenuItemIdentifier
-        changeTitleItem.target = target
+        changeTitleItem.target = self
+        changeTitleItem.representedObject = target?.window
         changeTitleItem.setImageIfDesired(systemSymbolName: "pencil.line")
         menu.addItem(changeTitleItem)
 
@@ -1031,4 +1061,43 @@ private func makeTabColorPaletteView(
     ))
     hostingView.frame.size = hostingView.intrinsicContentSize
     return hostingView
+}
+
+// MARK: - Inline Tab Title Editing
+
+extension TerminalWindow: TabTitleEditorDelegate {
+    func tabTitleEditor(
+        _ editor: TabTitleEditor,
+        canRenameTabFor targetWindow: NSWindow
+    ) -> Bool {
+        targetWindow.windowController is BaseTerminalController
+    }
+
+    func tabTitleEditor(
+        _ editor: TabTitleEditor,
+        titleFor targetWindow: NSWindow
+    ) -> String {
+        guard let targetController = targetWindow.windowController as? BaseTerminalController else {
+            return targetWindow.title
+        }
+
+        return targetController.titleOverride ?? targetWindow.title
+    }
+
+    func tabTitleEditor(
+        _ editor: TabTitleEditor,
+        didCommitTitle editedTitle: String,
+        for targetWindow: NSWindow
+    ) {
+        guard let targetController = targetWindow.windowController as? BaseTerminalController else { return }
+        targetController.titleOverride = editedTitle.isEmpty ? nil : editedTitle
+    }
+
+    func tabTitleEditor(
+        _ editor: TabTitleEditor,
+        performFallbackRenameFor targetWindow: NSWindow
+    ) {
+        guard let targetController = targetWindow.windowController as? BaseTerminalController else { return }
+        targetController.promptTabTitle()
+    }
 }

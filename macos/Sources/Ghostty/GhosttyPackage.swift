@@ -14,10 +14,6 @@ extension Ghostty {
 /// A command is fully self-contained so it is Sendable.
 extension ghostty_command_s: @unchecked @retroactive Sendable {}
 
-/// A surface is sendable because it is just a reference type. Using the surface in parameters
-/// may be unsafe but the value itself is safe to send across threads.
-extension ghostty_surface_t: @unchecked @retroactive Sendable {}
-
 // MARK: Build Info
 
 extension Ghostty {

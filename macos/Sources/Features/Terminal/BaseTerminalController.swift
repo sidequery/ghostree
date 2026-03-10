@@ -51,6 +51,9 @@ class BaseTerminalController: NSWindowController,
     /// Set if the terminal view should show the update overlay.
     @Published var updateOverlayIsVisible: Bool = false
 
+    /// True when any surface in this controller currently has an active bell.
+    @Published private(set) var bell: Bool = false
+
     /// Whether the terminal surface should focus when the mouse is over it.
     var focusFollowsMouse: Bool {
         self.derivedConfig.focusFollowsMouse
@@ -88,6 +91,9 @@ class BaseTerminalController: NSWindowController,
 
     /// The cancellables related to our focused surface.
     private var focusedSurfaceCancellables: Set<AnyCancellable> = []
+
+    /// Cancellable for aggregating bell state across all surfaces in this controller.
+    private var bellStateCancellable: AnyCancellable?
 
     /// An override title for the tab/window set by the user via prompt_tab_title.
     /// When set, this takes precedence over the computed title from the terminal.
@@ -140,6 +146,9 @@ class BaseTerminalController: NSWindowController,
         // Initialize our initial surface.
         guard let ghostty_app = ghostty.app else { preconditionFailure("app must be loaded") }
         self.surfaceTree = tree ?? .init(view: Ghostty.SurfaceView(ghostty_app, baseConfig: base))
+
+        // Setup our bell state for the window
+        setupBellNotificationPublisher()
 
         // Setup our notifications for behaviors
         let center = NotificationCenter.default
@@ -1224,6 +1233,17 @@ class BaseTerminalController: NSWindowController,
     func windowWillClose(_ notification: Notification) {
         guard let window else { return }
 
+        // Emit a final bell-state transition so any observers can clear state
+        // without separately tracking NSWindow lifecycle events.
+        if bell {
+            bell = false
+            NotificationCenter.default.post(
+                name: .terminalWindowBellDidChangeNotification,
+                object: self,
+                userInfo: [Notification.Name.terminalWindowHasBellKey: false]
+            )
+        }
+
         // I don't know if this is required anymore. We previously had a ref cycle between
         // the view and the window so we had to nil this out to break it but I think this
         // may now be resolved. We should verify that no memory leaks and we can remove this.
@@ -1243,9 +1263,11 @@ class BaseTerminalController: NSWindowController,
             }
         }
 
-        // Becoming/losing key means we have to notify our surface(s) that we have focus
-        // so things like cursors blink, pty events are sent, etc.
-        self.syncFocusToSurfaceTree()
+        // Becoming key can race with responder updates when activating a window.
+        // Sync on the next runloop so split focus has settled first.
+        DispatchQueue.main.async {
+            self.syncFocusToSurfaceTree()
+        }
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -1493,4 +1515,58 @@ extension BaseTerminalController: NSMenuItemValidation {
         }
         appliedColorScheme = scheme
     }
+}
+
+// MARK: Combine Methods
+
+extension BaseTerminalController {
+    /// Publishes an app-wide notification whenever this terminal window's aggregate
+    /// bell state changes.
+    private func setupBellNotificationPublisher() {
+        bellStateCancellable = surfaceValuesPublisher(valueKeyPath: \.bell, publisherKeyPath: \.$bell)
+            .map { $0.values.contains(true) }
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] hasBell in
+                guard let self else { return }
+                bell = hasBell
+                NotificationCenter.default.post(
+                    name: .terminalWindowBellDidChangeNotification,
+                    object: self,
+                    userInfo: [Notification.Name.terminalWindowHasBellKey: hasBell]
+                )
+            }
+    }
+
+    /// Creates a publisher for values on all surfaces in this controller's tree.
+    ///
+    /// The publisher emits a dictionary of surface IDs to values whenever the tree changes
+    /// or any surface publishes a new value for the key path.
+    func surfaceValuesPublisher<Value>(
+        valueKeyPath: KeyPath<Ghostty.SurfaceView, Value>,
+        publisherKeyPath: KeyPath<Ghostty.SurfaceView, Published<Value>.Publisher>
+    ) -> AnyPublisher<[Ghostty.SurfaceView.ID: Value], Never> {
+        // `surfaceTree` can be replaced entirely when splits are added/removed/closed.
+        // For each tree snapshot we build a fresh publisher that watches all surfaces
+        // in that snapshot.
+        $surfaceTree
+            .map { tree in
+                tree.valuesPublisher(
+                    valueKeyPath: valueKeyPath,
+                    publisherKeyPath: publisherKeyPath
+                )
+            }
+            // Keep only the latest tree publisher active. This automatically cancels
+            // subscriptions for old/removed surfaces when the tree changes.
+            .switchToLatest()
+            .eraseToAnyPublisher()
+    }
+}
+
+// MARK: Notifications
+
+extension Notification.Name {
+    /// Terminal window aggregate bell state changed.
+    static let terminalWindowBellDidChangeNotification = Notification.Name("com.mitchellh.ghostty.terminalWindowBellDidChange")
+    static let terminalWindowHasBellKey = terminalWindowBellDidChangeNotification.rawValue + ".hasBell"
 }

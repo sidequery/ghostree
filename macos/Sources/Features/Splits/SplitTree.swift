@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 /// SplitTree represents a tree of views that can be divided.
 struct SplitTree<ViewType: NSView & Codable & Identifiable> {
@@ -1212,6 +1213,57 @@ extension SplitTree: Collection {
     func index(after i: Int) -> Int {
         precondition(i < endIndex, "Cannot increment index beyond endIndex")
         return i + 1
+    }
+}
+
+// MARK: SplitTree Combine
+
+extension SplitTree {
+    /// Builds a publisher that emits current values for all leaf views keyed by view ID.
+    ///
+    /// The returned publisher emits a full `[ViewType.ID: Value]` snapshot whenever any leaf view
+    /// publishes through the provided publisher key path.
+    func valuesPublisher<Value>(
+        valueKeyPath: KeyPath<ViewType, Value>,
+        publisherKeyPath: KeyPath<ViewType, Published<Value>.Publisher>
+    ) -> AnyPublisher<[ViewType.ID: Value], Never> {
+        // Flatten the split tree into a list of current leaf views.
+        let views = map { $0 }
+        guard !views.isEmpty else {
+            // If there are no leaves, immediately publish an empty snapshot.
+            // `Just([:])` keeps the return type simple and makes downstream usage easy.
+            return Just([:]).eraseToAnyPublisher()
+        }
+
+        // Capture each view's current value up front.
+        // We key by `ViewType.ID` so updates can replace the correct entry later.
+        // This avoids waiting for all views to emit before consumers see data.
+        let initial = Dictionary(uniqueKeysWithValues: views.map { view in
+            (view.id, view[keyPath: valueKeyPath])
+        })
+
+        // Build one publisher per view from the requested key path.
+        // Each emission is mapped into `(id, value)` so we know which entry changed.
+        // `MergeMany` combines all per-view streams into a single update stream.
+        let updates = Publishers.MergeMany(views.map { view in
+            view[keyPath: publisherKeyPath]
+                .map { (view.id, $0) }
+                .eraseToAnyPublisher()
+        })
+
+        return updates
+            // Accumulate updates into a full "latest value per ID" dictionary.
+            // This turns incremental events into complete state snapshots.
+            .scan(initial) { state, update in
+                var state = state
+                state[update.0] = update.1
+                return state
+            }
+            // Emit the initial snapshot first so subscribers always get a
+            // complete value dictionary immediately upon subscription.
+            .prepend(initial)
+            // Hide implementation details and expose a stable API type.
+            .eraseToAnyPublisher()
     }
 }
 

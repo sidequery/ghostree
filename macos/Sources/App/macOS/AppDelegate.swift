@@ -265,6 +265,12 @@ class AppDelegate: NSObject,
         )
         NotificationCenter.default.addObserver(
             self,
+            selector: #selector(terminalWindowHasBell(_:)),
+            name: .terminalWindowBellDidChangeNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
             selector: #selector(ghosttyNewWindow(_:)),
             name: Ghostty.Notification.ghosttyNewWindow,
             object: nil)
@@ -318,7 +324,7 @@ class AppDelegate: NSObject,
         agentStatusBadgeCancellable = worktrunkStore.$agentStatusByWorktreePath
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.updateDockBadgeForAgentStatus()
+                self?.syncDockBadge()
             }
 
         switch Ghostty.launchSource {
@@ -354,9 +360,8 @@ class AppDelegate: NSObject,
         // If we're back manually then clear the hidden state because macOS handles it.
         self.hiddenState = nil
 
-        // Recalculate dock badge: keep agent status count, clear transient bell badge
-        self.updateDockBadgeForAgentStatus()
-
+        // Recalculate dock badge from the full current state.
+        self.syncDockBadge()
         // First launch stuff
         if !applicationHasBecomeActive {
             applicationHasBecomeActive = true
@@ -804,21 +809,31 @@ class AppDelegate: NSObject,
             NSSound.beep()
         }
 
+        if ghostty.config.bellFeatures.contains(.audio) {
+            if let configPath = ghostty.config.bellAudioPath,
+               let sound = NSSound(contentsOfFile: configPath.path, byReference: false) {
+                sound.volume = ghostty.config.bellAudioVolume
+                sound.play()
+            }
+        }
+
         if ghostty.config.bellFeatures.contains(.attention) {
             // Bounce the dock icon if we're not focused.
             NSApp.requestUserAttention(.informationalRequest)
-
-            // Handle setting the dock badge based on permissions
-            ghosttyUpdateBadgeForBell()
         }
     }
 
-    private func ghosttyUpdateBadgeForBell() {
+    @objc private func terminalWindowHasBell(_ notification: Notification) {
+        guard notification.object is BaseTerminalController else { return }
+        syncDockBadge()
+    }
+
+    private func syncDockBadge() {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .authorized:
-                // Already authorized, check badge setting and set if enabled
+                // If we're authorized and allow badges, then set the badge.
                 if settings.badgeSetting == .enabled {
                     DispatchQueue.main.async {
                         self.setDockBadge()
@@ -875,14 +890,24 @@ class AppDelegate: NSObject,
         _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: config)
     }
 
-    private func updateDockBadgeForAgentStatus() {
-        let count = worktrunkStore.attentionCount
-        setDockBadge(count > 0 ? "\(count)" : nil)
-    }
-
     private func setDockBadge(_ label: String? = "•") {
         NSApp.dockTile.badgeLabel = label
         NSApp.dockTile.display()
+    }
+
+    private func setDockBadge() {
+        let agentCount = worktrunkStore.attentionCount
+        if agentCount > 0 {
+            setDockBadge(agentCount > 99 ? "99+" : String(agentCount))
+            return
+        }
+
+        let bellCount = NSApp.windows
+            .compactMap { $0.windowController as? BaseTerminalController }
+            .reduce(0) { $0 + ($1.bell ? 1 : 0) }
+        let wantsBadge = ghostty.config.bellFeatures.contains(.attention) && bellCount > 0
+        let label = wantsBadge ? (bellCount > 99 ? "99+" : String(bellCount)) : nil
+        setDockBadge(label)
     }
 
     private func ghosttyConfigDidChange(config: Ghostty.Config) {
@@ -924,6 +949,9 @@ class AppDelegate: NSObject,
         // Config could change keybindings, so update everything that depends on that
         syncMenuShortcuts(config)
         TerminalController.all.forEach { $0.relabelTabs() }
+
+        // Update our badge since config can change what we show.
+        syncDockBadge()
 
         // Config could change window appearance. We wrap this in an async queue because when
         // this is called as part of application launch it can deadlock with an internal

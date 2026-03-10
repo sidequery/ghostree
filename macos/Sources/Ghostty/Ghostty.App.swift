@@ -433,10 +433,17 @@ extension Ghostty {
         /// Determine if a given notification should be presented to the user when Ghostty is running in the foreground.
         func shouldPresentNotification(notification: UNNotification) -> Bool {
             let userInfo = notification.request.content.userInfo
+
+            // We always require the notification to be attached to a surface.
             guard let uuidString = userInfo["surface"] as? String,
                   let uuid = UUID(uuidString: uuidString),
                   let surface = delegate?.findSurface(forUUID: uuid),
                   let window = surface.window else { return false }
+
+            // If we don't require focus then we're good!
+            let requireFocus = userInfo["requireFocus"] as? Bool ?? true
+            if !requireFocus { return true }
+
             return !window.isKeyWindow || !surface.focused
         }
 
@@ -631,6 +638,9 @@ extension Ghostty {
 
             case GHOSTTY_ACTION_SEARCH_SELECTED:
                 searchSelected(app, target: target, v: action.action.search_selected)
+
+            case GHOSTTY_ACTION_COMMAND_FINISHED:
+                commandFinished(app, target: target, v: action.action.command_finished)
 
             case GHOSTTY_ACTION_PRESENT_TERMINAL:
                 return presentTerminal(app, target: target)
@@ -1353,7 +1363,7 @@ extension Ghostty {
             n: ghostty_action_desktop_notification_s) {
             switch target.tag {
             case GHOSTTY_TARGET_APP:
-                Ghostty.logger.warning("toggle split zoom does nothing with an app target")
+                Ghostty.logger.warning("desktop notification does nothing with an app target")
                 return
 
             case GHOSTTY_TARGET_SURFACE:
@@ -1361,17 +1371,105 @@ extension Ghostty {
                 guard let surfaceView = self.surfaceView(from: surface) else { return }
                 guard let title = String(cString: n.title!, encoding: .utf8) else { return }
                 guard let body = String(cString: n.body!, encoding: .utf8) else { return }
+                showDesktopNotification(surfaceView, title: title, body: body)
 
-                let center = UNUserNotificationCenter.current()
-                center.requestAuthorization(options: [.alert, .sound]) { _, error in
-                    if let error = error {
-                        Ghostty.logger.error("Error while requesting notification authorization: \(error)")
-                    }
+            default:
+                assertionFailure()
+            }
+        }
+
+        private static func showDesktopNotification(
+            _ surfaceView: SurfaceView,
+            title: String,
+            body: String,
+            requireFocus: Bool = true) {
+            let center = UNUserNotificationCenter.current()
+            center.requestAuthorization(options: [.alert, .sound]) { _, error in
+                if let error = error {
+                    Ghostty.logger.error("Error while requesting notification authorization: \(error)")
+                }
+            }
+
+            center.getNotificationSettings { settings in
+                guard settings.authorizationStatus == .authorized else { return }
+                surfaceView.showUserNotification(
+                    title: title,
+                    body: body,
+                    requireFocus: requireFocus
+                )
+            }
+        }
+
+        private static func commandFinished(
+            _ app: ghostty_app_t,
+            target: ghostty_target_s,
+            v: ghostty_action_command_finished_s
+        ) {
+            switch target.tag {
+            case GHOSTTY_TARGET_APP:
+                Ghostty.logger.warning("command finished does nothing with an app target")
+                return
+
+            case GHOSTTY_TARGET_SURFACE:
+                guard let surface = target.target.surface else { return }
+                guard let surfaceView = self.surfaceView(from: surface) else { return }
+
+                // Determine if we even care about command finish notifications
+                guard let config = (NSApplication.shared.delegate as? AppDelegate)?.ghostty.config else { return }
+                switch config.notifyOnCommandFinish {
+                case .never:
+                    return
+
+                case .unfocused:
+                    if surfaceView.focused { return }
+
+                case .always:
+                    break
                 }
 
-                center.getNotificationSettings { settings in
-                    guard settings.authorizationStatus == .authorized else { return }
-                    surfaceView.showUserNotification(title: title, body: body)
+                // Determine if the command was slow enough
+                let duration = Duration.nanoseconds(v.duration)
+                guard Duration.nanoseconds(v.duration) >= config.notifyOnCommandFinishAfter else { return }
+
+                let actions = config.notifyOnCommandFinishAction
+
+                if actions.contains(.bell) {
+                    NotificationCenter.default.post(
+                        name: .ghosttyBellDidRing,
+                        object: surfaceView
+                    )
+                }
+
+                if actions.contains(.notify) {
+                    let title: String
+                    if v.exit_code < 0 {
+                        title = "Command Finished"
+                    } else if v.exit_code == 0 {
+                        title = "Command Succeeded"
+                    } else {
+                        title = "Command Failed"
+                    }
+
+                    let body: String
+                    let formattedDuration = duration.formatted(
+                        .units(
+                            allowed: [.hours, .minutes, .seconds, .milliseconds],
+                            width: .abbreviated,
+                            fractionalPart: .hide
+                        )
+                    )
+                    if v.exit_code < 0 {
+                        body = "Command took \(formattedDuration)."
+                    } else {
+                        body = "Command took \(formattedDuration) and exited with code \(v.exit_code)."
+                    }
+
+                    showDesktopNotification(
+                        surfaceView,
+                        title: title,
+                        body: body,
+                        requireFocus: false
+                    )
                 }
 
             default:

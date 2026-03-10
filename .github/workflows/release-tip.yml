@@ -42,7 +42,7 @@ jobs:
         with:
           path: |
             /nix
-      - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
+      - uses: cachix/install-nix-action@19effe9fe722874e6d46dd7182e4b8b7a43c4a99 # v31.10.0
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
@@ -175,7 +175,7 @@ jobs:
           path: |
             /nix
             /zig
-      - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
+      - uses: cachix/install-nix-action@19effe9fe722874e6d46dd7182e4b8b7a43c4a99 # v31.10.0
         with:
           nix_path: nixpkgs=channel:nixos-unstable
       - uses: cachix/cachix-action@3ba601ff5bbb07c7220846facfa2cd81eeee15a1 # v16
@@ -259,7 +259,7 @@ jobs:
       # Setup Sparkle
       - name: Setup Sparkle
         env:
-          SPARKLE_VERSION: 2.7.3
+          SPARKLE_VERSION: 2.9.0
         run: |
           mkdir -p .action/sparkle
           cd .action/sparkle
@@ -456,7 +456,7 @@ jobs:
           EOF
 
       - name: Upload Release URLs
-        uses: actions/upload-artifact@47309c993abb98030a35d55ef7ff34b7fa1074b5 # v6.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v6.0
         with:
           name: release-urls-${{ inputs.pr || '0' }}
           path: release-urls.txt
@@ -515,7 +515,7 @@ jobs:
       # Setup Sparkle
       - name: Setup Sparkle
         env:
-          SPARKLE_VERSION: 2.7.3
+          SPARKLE_VERSION: 2.9.0
         run: |
           mkdir -p .action/sparkle
           cd .action/sparkle
@@ -712,7 +712,7 @@ jobs:
       # Setup Sparkle
       - name: Setup Sparkle
         env:
-          SPARKLE_VERSION: 2.7.3
+          SPARKLE_VERSION: 2.9.0
         run: |
           mkdir -p .action/sparkle
           cd .action/sparkle

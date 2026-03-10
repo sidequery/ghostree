@@ -72,6 +72,7 @@ CI does NOT work for releases (upstream Namespace Cloud runners). All releases a
 
 The release-tag workflow will queue forever on upstream's runners. Cancel them:
 `gh run cancel <run_id> --repo sidequery/ghostree`
+
 ## Issue and PR Guidelines
 
 - Never create an issue.

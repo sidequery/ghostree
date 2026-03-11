@@ -130,6 +130,9 @@ struct WorktrunkSidebarView: View {
                 onOpen: { openWorktree($0) }
             )
         }
+        .onChange(of: showRepoPicker) { isShowing in
+            if isShowing { repoSearchText = "" }
+        }
         .onChange(of: sidebarState.selection) { newValue in
             var focusedWorktreePath: String?
             if sidebarTabsEnabled {
@@ -280,18 +283,112 @@ struct WorktrunkSidebarView: View {
             }
             return result
         }()
-        let topWorktreePaths = Set(worktreeTabs.compactMap(\.worktreeRootPath).map(standardizedPath))
+        let activeTabs = sidebarTabItems(from: worktreeTabs)
+        let topWorktreePaths = Set(activeTabs.map { standardizedPath($0.worktree.path) })
+        let activeTabWindowNumbers: [String: Int] = Dictionary(
+            uniqueKeysWithValues: activeTabs.map { item in
+                (standardizedPath(item.worktree.path), item.tab.windowNumber)
+            }
+        )
+        let lastActiveTabWindowNumber = activeTabs.last?.tab.windowNumber
+        let hasVisibleWorktreeRows: Bool = {
+            if store.sidebarListMode == .flatWorktrees {
+                return snapshot.flatWorktrees.contains { wt in
+                    !topWorktreePaths.contains(standardizedPath(wt.path))
+                }
+            } else {
+                return !snapshot.repositories.isEmpty
+            }
+        }()
+        let worktreesLoadingSpacer: CGFloat = {
+            guard store.isRefreshing else { return 0 }
+            guard !hasVisibleWorktreeRows else { return 0 }
+            // OCR on the same-geometry screenshots measured the loading
+            // header 21.19 px left of the resting position. User feedback
+            // tuned that down slightly; 9.6 pt matches the current target.
+            return 9.6
+        }()
         return List(selection: selection) {
-            Section {
-                if sidebarTabsEnabled {
-                    sidebarTabsList(snapshot: snapshot, tabs: worktreeTabs)
-                }
+            if !activeTabs.isEmpty {
+                sidebarHeaderRow("Active", topPadding: -4)
+                sidebarTabsList(
+                    snapshot: snapshot,
+                    shownTabs: activeTabs,
+                    windowNumberByWorktreePath: activeTabWindowNumbers
+                )
+            }
 
-                if store.sidebarListMode == .flatWorktrees {
-                    flatWorktreeList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
-                } else {
-                    nestedRepoList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
+            HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    Text("Worktrees")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(nil)
                 }
+                .padding(.leading, -16 + worktreesLoadingSpacer)
+
+                Spacer(minLength: 0)
+
+                Button {
+                    presentCreateWorktree(from: snapshot)
+                } label: {
+                    Image(systemName: "plus")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(snapshot.repositories.isEmpty)
+                .help(snapshot.repositories.isEmpty ? "Add a repository first" : "Create worktree")
+                .padding(.trailing, 8)
+                .popover(isPresented: $showRepoPicker) {
+                    RepoPickerPopover(
+                        repositories: store.sidebarSnapshot.repositories,
+                        searchText: $repoSearchText
+                    ) { repo in
+                        showRepoPicker = false
+                        createSheetRepo = repo
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .padding(.top, activeTabs.isEmpty ? -2 : 4)
+            .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 0))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .overlay(alignment: .top) {
+                if sidebarTabsEndDropTarget {
+                    SidebarInsertionIndicatorLine()
+                }
+            }
+            .onDrop(of: [UTType.fileURL.identifier], isTargeted: Binding(
+                get: { sidebarTabsEndDropTarget },
+                set: { targeted in
+                    DispatchQueue.main.async {
+                        sidebarTabsEndDropTarget = targeted
+                    }
+                }
+            )) { providers in
+                guard let lastActiveTabWindowNumber else { return false }
+                return SidebarFileURLDrop.loadURL(from: providers) { url in
+                    guard let url else { return }
+                    let key = URL(fileURLWithPath: url.path).standardizedFileURL.path
+                    guard let moving = activeTabWindowNumbers[key] else { return }
+                    guard moving != lastActiveTabWindowNumber else { return }
+
+                    let scrollY = sidebarScrollPreserver.captureScrollY()
+                    moveNativeTabAfter(moving, lastActiveTabWindowNumber)
+                    if let scrollY {
+                        DispatchQueue.main.async {
+                            sidebarScrollPreserver.restoreScrollY(scrollY)
+                        }
+                    }
+                }
+            }
+
+            if store.sidebarListMode == .flatWorktrees {
+                flatWorktreeList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
+            } else {
+                nestedRepoList(snapshot: snapshot, excludingWorktreePaths: topWorktreePaths)
             }
         }
         .background(SidebarListScrollFinder(preserver: sidebarScrollPreserver))
@@ -320,22 +417,20 @@ struct WorktrunkSidebarView: View {
         return tabRoots.intersection(store.sidebarWorktreePaths)
     }
 
+    private func sidebarTabItems(from tabs: [WorktrunkOpenTabsModel.Tab]) -> [SidebarTabItem] {
+        tabs.compactMap { tab in
+            guard let root = tab.worktreeRootPath else { return nil }
+            guard let worktree = findWorktree(forWorktreeRootPath: root) else { return nil }
+            return SidebarTabItem(tab: tab, worktree: worktree)
+        }
+    }
+
     @ViewBuilder
     private func sidebarTabsList(
         snapshot: WorktrunkStore.SidebarSnapshot,
-        tabs: [WorktrunkOpenTabsModel.Tab]
+        shownTabs: [SidebarTabItem],
+        windowNumberByWorktreePath: [String: Int]
     ) -> some View {
-        let shownTabs: [(tab: WorktrunkOpenTabsModel.Tab, worktree: WorktrunkStore.Worktree)] = tabs.compactMap { tab in
-            guard let root = tab.worktreeRootPath else { return nil }
-            guard let wt = findWorktree(forWorktreeRootPath: root) else { return nil }
-            return (tab, wt)
-        }
-        let windowNumberByWorktreePath: [String: Int] = Dictionary(
-            uniqueKeysWithValues: shownTabs.map { item in
-                let key = URL(fileURLWithPath: item.worktree.path).standardizedFileURL.path
-                return (key, item.tab.windowNumber)
-            }
-        )
         let alwaysVisibleWorktreePaths = Set(windowNumberByWorktreePath.keys)
         let moveBeforePreservingScroll: (Int, Int) -> Void = { moving, target in
             let scrollY = sidebarScrollPreserver.captureScrollY()
@@ -380,37 +475,6 @@ struct WorktrunkSidebarView: View {
                 windowNumberByWorktreePath: windowNumberByWorktreePath
             )
         }
-
-        if let last = shownTabs.last?.tab {
-            Rectangle()
-                .fill(Color.clear)
-                .frame(maxWidth: .infinity)
-                .frame(height: 1)
-                .contentShape(Rectangle())
-                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
-                .listRowSeparator(.hidden)
-                .overlay(alignment: .center) {
-                    if sidebarTabsEndDropTarget {
-                        SidebarInsertionIndicatorLine()
-                    }
-                }
-                .onDrop(of: [UTType.fileURL.identifier], isTargeted: Binding(
-                    get: { sidebarTabsEndDropTarget },
-                    set: { targeted in
-                        DispatchQueue.main.async {
-                            sidebarTabsEndDropTarget = targeted
-                        }
-                    }
-                )) { providers in
-                    return SidebarFileURLDrop.loadURL(from: providers) { url in
-                        guard let url else { return }
-                        let key = URL(fileURLWithPath: url.path).standardizedFileURL.path
-                        guard let moving = windowNumberByWorktreePath[key] else { return }
-                        guard moving != last.windowNumber else { return }
-                        moveAfterPreservingScroll(moving, last.windowNumber)
-                    }
-                }
-        }
     }
 
     @ViewBuilder
@@ -437,20 +501,6 @@ struct WorktrunkSidebarView: View {
                     }
                 )
             ) {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus.circle")
-                        .foregroundStyle(.secondary)
-                    Text("New worktree…")
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-                .padding(.bottom, 2)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    createSheetRepo = repo
-                }
-                .help("Create worktree")
-
                 let worktrees = (snapshot.worktreesByRepositoryID[repo.id] ?? []).filter { wt in
                     !excludingWorktreePaths.contains(standardizedPath(wt.path))
                 }
@@ -505,41 +555,11 @@ struct WorktrunkSidebarView: View {
             !excludingWorktreePaths.contains(standardizedPath(wt.path))
         }
 
-        if !snapshot.repositories.isEmpty {
-            HStack(spacing: 8) {
-                Image(systemName: "plus.circle")
-                    .foregroundStyle(.secondary)
-                Text("New worktree…")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.bottom, 2)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                if snapshot.repositories.count == 1, let repo = snapshot.repositories.first {
-                    createSheetRepo = repo
-                } else {
-                    showRepoPicker = true
-                }
-            }
-            .help("Create worktree")
-            .popover(isPresented: $showRepoPicker) {
-                RepoPickerPopover(
-                    repositories: snapshot.repositories,
-                    searchText: $repoSearchText
-                ) { repo in
-                    showRepoPicker = false
-                    createSheetRepo = repo
-                }
-            }
-            .onChange(of: showRepoPicker) { isShowing in
-                if isShowing { repoSearchText = "" }
-            }
-        }
-
         if worktrees.isEmpty {
-            Text("No worktrees")
-                .foregroundStyle(.secondary)
+            if !store.isRefreshing {
+                Text("No worktrees")
+                    .foregroundStyle(.secondary)
+            }
         } else {
             ForEach(worktrees) { wt in
                 worktreeDisclosureGroup(
@@ -549,6 +569,56 @@ struct WorktrunkSidebarView: View {
                     showsRepoName: true
                 )
             }
+        }
+    }
+
+    @ViewBuilder
+    private func sidebarHeaderRow(
+        _ title: String,
+        topPadding: CGFloat = 0,
+        bottomPadding: CGFloat = 0,
+        leadingShift: CGFloat = -16,
+        addAction: (() -> Void)? = nil,
+        addDisabled: Bool = false
+    ) -> some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(nil)
+            }
+            .padding(.leading, leadingShift)
+
+            Spacer(minLength: 0)
+
+            if let addAction {
+                Button(action: addAction) {
+                    Image(systemName: "plus")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(addDisabled)
+                .help(addDisabled ? "Add a repository first" : "Create worktree")
+                .padding(.trailing, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .padding(.top, topPadding)
+        .padding(.bottom, bottomPadding)
+        .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 0))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+
+    private func presentCreateWorktree(from snapshot: WorktrunkStore.SidebarSnapshot) {
+        guard !snapshot.repositories.isEmpty else { return }
+
+        if snapshot.repositories.count == 1, let repo = snapshot.repositories.first {
+            createSheetRepo = repo
+        } else {
+            showRepoPicker = true
         }
     }
 
@@ -803,6 +873,11 @@ struct WorktrunkSidebarView: View {
         guard let url else { return }
         await store.addRepositoryValidated(path: url.path)
     }
+}
+
+private struct SidebarTabItem {
+    let tab: WorktrunkOpenTabsModel.Tab
+    let worktree: WorktrunkStore.Worktree
 }
 
 private enum SidebarFileURLDrop {

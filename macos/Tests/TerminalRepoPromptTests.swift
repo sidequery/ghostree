@@ -118,6 +118,23 @@ struct TerminalRepoPromptTests {
         #expect(ready.state(for: .push)?.description == "Nothing to push.")
     }
 
+    @Test func cleanSnapshotWithoutTrackingResolvesToOpenPR() {
+        let snapshot = TerminalRepoPromptSnapshot(
+            repoRoot: "/tmp/repo",
+            branch: "feature/repo-prompts",
+            sessions: [session()],
+            hasDirtyChanges: false,
+            openPR: nil,
+            gitTracking: nil
+        )
+
+        let ready = TerminalRepoPrompt.classify(snapshot: snapshot)
+        #expect(ready.primaryAction == .openPR)
+        #expect(ready.shortcutAction == nil)
+        #expect(ready.state(for: .openPR)?.isAvailable == true)
+        #expect(ready.state(for: .push)?.isAvailable == true)
+    }
+
     @Test func cleanSnapshotWithOpenPRAndAheadResolvesToPush() {
         let snapshot = TerminalRepoPromptSnapshot(
             repoRoot: "/tmp/repo",
@@ -169,6 +186,23 @@ struct TerminalRepoPromptTests {
         #expect(ready.shortcutAction == nil)
         #expect(ready.state(for: .updatePR)?.isAvailable == true)
         #expect(ready.state(for: .push)?.description == "Nothing to push.")
+    }
+
+    @Test func cleanSnapshotWithOpenPRAndUnknownTrackingResolvesToUpdatePR() {
+        let snapshot = TerminalRepoPromptSnapshot(
+            repoRoot: "/tmp/repo",
+            branch: "feature/repo-prompts",
+            sessions: [session()],
+            hasDirtyChanges: false,
+            openPR: openPR(),
+            gitTracking: nil
+        )
+
+        let ready = TerminalRepoPrompt.classify(snapshot: snapshot)
+        #expect(ready.primaryAction == .updatePR)
+        #expect(ready.shortcutAction == nil)
+        #expect(ready.state(for: .updatePR)?.isAvailable == true)
+        #expect(ready.state(for: .push)?.isAvailable == true)
     }
 
     @Test func openPRPromptIsCompactAndIncludesHeaderRule() {

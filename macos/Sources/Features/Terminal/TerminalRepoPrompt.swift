@@ -118,7 +118,7 @@ enum TerminalRepoPromptResolution: Equatable {
 enum TerminalRepoPrompt {
     static func classify(snapshot: TerminalRepoPromptSnapshot) -> TerminalRepoPromptReadyState {
         let actionStates = actionStates(for: snapshot)
-        let primaryAction = actionStates.first(where: \.isAvailable)?.action ?? .commit
+        let primaryAction = primaryAction(for: snapshot)
         let shortcutAction = shortcutAction(for: snapshot, primaryAction: primaryAction)
 
         return .init(
@@ -129,14 +129,32 @@ enum TerminalRepoPrompt {
         )
     }
 
+    private static func primaryAction(for snapshot: TerminalRepoPromptSnapshot) -> TerminalRepoPromptAction {
+        if snapshot.hasDirtyChanges {
+            return .commit
+        }
+
+        let trackingKnown = snapshot.gitTracking != nil
+        let hasUpstream = snapshot.gitTracking?.hasUpstream ?? false
+        let aheadCount = snapshot.gitTracking?.ahead ?? 0
+        let needsPush = trackingKnown && (!hasUpstream || aheadCount > 0)
+
+        if snapshot.openPR != nil {
+            return needsPush ? .push : .updatePR
+        }
+
+        return needsPush ? .push : .openPR
+    }
+
     private static func shortcutAction(
         for snapshot: TerminalRepoPromptSnapshot,
         primaryAction: TerminalRepoPromptAction
     ) -> TerminalRepoPromptShortcutState? {
         let hasOpenPR = snapshot.openPR != nil
+        let trackingKnown = snapshot.gitTracking != nil
         let hasUpstream = snapshot.gitTracking?.hasUpstream ?? false
         let aheadCount = snapshot.gitTracking?.ahead ?? 0
-        let needsPush = !hasUpstream || aheadCount > 0
+        let needsPush = trackingKnown && (!hasUpstream || aheadCount > 0)
 
         switch primaryAction {
         case .commit:
@@ -167,9 +185,10 @@ enum TerminalRepoPrompt {
     ) -> [TerminalRepoPromptActionState] {
         let hasDirtyChanges = snapshot.hasDirtyChanges
         let hasOpenPR = snapshot.openPR != nil
+        let trackingKnown = snapshot.gitTracking != nil
         let hasUpstream = snapshot.gitTracking?.hasUpstream ?? false
         let aheadCount = snapshot.gitTracking?.ahead ?? 0
-        let needsPush = !hasUpstream || aheadCount > 0
+        let needsPush = trackingKnown && (!hasUpstream || aheadCount > 0)
 
         return TerminalRepoPromptAction.menuActions.map { action in
             switch action {
@@ -194,6 +213,20 @@ enum TerminalRepoPrompt {
                         action: action,
                         isAvailable: false,
                         description: "Commit changes first."
+                    )
+                }
+
+                if !trackingKnown {
+                    let description = if hasOpenPR {
+                        "Push the current branch to the existing PR branch if needed."
+                    } else {
+                        "Push the current branch and set upstream if needed."
+                    }
+
+                    return .init(
+                        action: action,
+                        isAvailable: true,
+                        description: description
                     )
                 }
 

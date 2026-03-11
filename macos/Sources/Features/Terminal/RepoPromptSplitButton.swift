@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 
 enum RepoPromptSplitButton {
@@ -127,3 +128,4 @@ enum RepoPromptSplitButton {
         return item
     }
 }
+#endif

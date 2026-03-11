@@ -269,7 +269,7 @@ enum TerminalRepoPrompt {
                     )
                 }
 
-                if !hasUpstream || aheadCount > 0 {
+                if trackingKnown && (!hasUpstream || aheadCount > 0) {
                     return .init(
                         action: action,
                         isAvailable: false,

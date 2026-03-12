@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 enum TerminalRepoPromptAction: String, CaseIterable {
@@ -422,3 +423,4 @@ enum TerminalRepoPrompt {
         return .ready(classify(snapshot: snapshot))
     }
 }
+#endif

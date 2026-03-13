@@ -128,11 +128,10 @@ class TerminalWindow: NSWindow {
         // If window decorations are disabled, remove our title
         if !config.windowDecorations { styleMask.remove(.titled) }
 
-        // Set our window positioning to coordinates if config value exists, otherwise
-        // fallback to original centering behavior
-        setInitialWindowPosition(
-            x: config.windowPositionX,
-            y: config.windowPositionY)
+        // NOTE: setInitialWindowPosition is NOT called here because subclass
+        // awakeFromNib may add decorations (e.g. toolbar for tabs style) that
+        // change the frame. It is called from TerminalController.windowDidLoad
+        // after the window is fully set up.
 
         // If our traffic buttons should be hidden, then hide them
         if config.macosWindowButtons == .hidden {
@@ -215,7 +214,7 @@ class TerminalWindow: NSWindow {
         tab.accessoryView = stackView
 
         // Get our saved level
-        level = UserDefaults.standard.value(forKey: Self.defaultLevelKey) as? NSWindow.Level ?? .normal
+        level = UserDefaults.ghostty.value(forKey: Self.defaultLevelKey) as? NSWindow.Level ?? .normal
     }
 
     // Both of these must be true for windows without decorations to be able to
@@ -530,7 +529,7 @@ class TerminalWindow: NSWindow {
         let fontName: String
         let fontSize: CGFloat
         let isKeyWindow: Bool
-        let macosTitlebarStyle: String
+        let macosTitlebarStyle: Ghostty.Config.MacOSTitlebarStyle
         let tabCount: Int
         let toolbarIdentifier: ObjectIdentifier?
     }
@@ -538,7 +537,7 @@ class TerminalWindow: NSWindow {
     override var title: String {
         didSet {
             // Only manage tab titles for custom tab styles.
-            if derivedConfig.macosTitlebarStyle == "tabs" {
+            if derivedConfig.macosTitlebarStyle == .tabs {
                 tab.title = title
                 tab.attributedTitle = attributedTitle
             }
@@ -594,7 +593,7 @@ class TerminalWindow: NSWindow {
         }
         lastTitlebarFontState = state
 
-        if derivedConfig.macosTitlebarStyle != "tabs",
+        if derivedConfig.macosTitlebarStyle != .tabs,
            tabCount > 1 {
             updateWorktrunkToolbarTitle()
             return
@@ -603,7 +602,7 @@ class TerminalWindow: NSWindow {
             titlebarTextField.font = enforcedTitlebarFont
             titlebarTextField.usesSingleLineMode = true
             titlebarTextField.attributedStringValue = attributedTitle ?? NSAttributedString(string: title)
-            if derivedConfig.macosTitlebarStyle == "tabs" {
+            if derivedConfig.macosTitlebarStyle == .tabs {
                 tab.title = title
                 tab.attributedTitle = attributedTitle
             }
@@ -794,20 +793,15 @@ class TerminalWindow: NSWindow {
         terminalController?.updateColorSchemeForSurfaceTree()
     }
 
-    private func setInitialWindowPosition(x: Int16?, y: Int16?) {
+    func setInitialWindowPosition(x: Int16?, y: Int16?) -> Bool {
         // If we don't have an X/Y then we try to use the previously saved window pos.
         guard let x = x, let y = y else {
-            if !LastWindowPosition.shared.restore(self) {
-                center()
-            }
-
-            return
+            return false
         }
 
         // Prefer the screen our window is being placed on otherwise our primary screen.
         guard let screen = screen ?? NSScreen.screens.first else {
-            center()
-            return
+            return false
         }
 
         // Convert top-left coordinates to bottom-left origin using our utility extension
@@ -823,6 +817,7 @@ class TerminalWindow: NSWindow {
         safeOrigin.y = min(max(safeOrigin.y, vf.minY), vf.maxY - frame.height)
 
         setFrameOrigin(safeOrigin)
+        return true
     }
 
     private func hideWindowButtons() {
@@ -845,7 +840,7 @@ class TerminalWindow: NSWindow {
         let backgroundColor: NSColor
         let backgroundOpacity: Double
         let macosWindowButtons: Ghostty.MacOSWindowButtons
-        let macosTitlebarStyle: String
+        let macosTitlebarStyle: Ghostty.Config.MacOSTitlebarStyle
         let windowCornerRadius: CGFloat
 
         init() {
@@ -854,7 +849,7 @@ class TerminalWindow: NSWindow {
             self.backgroundOpacity = 1
             self.macosWindowButtons = .visible
             self.backgroundBlur = .disabled
-            self.macosTitlebarStyle = "transparent"
+            self.macosTitlebarStyle = .default
             self.windowCornerRadius = 16
         }
 
@@ -870,7 +865,7 @@ class TerminalWindow: NSWindow {
             // Native, transparent, and hidden styles use 16pt radius
             // Tabs style uses 20pt radius
             switch config.macosTitlebarStyle {
-            case "tabs":
+            case .tabs:
                 self.windowCornerRadius = 20
             default:
                 self.windowCornerRadius = 16
@@ -1099,5 +1094,14 @@ extension TerminalWindow: TabTitleEditorDelegate {
     ) {
         guard let targetController = targetWindow.windowController as? BaseTerminalController else { return }
         targetController.promptTabTitle()
+    }
+
+    func tabTitleEditor(_ editor: TabTitleEditor, didFinishEditing targetWindow: NSWindow) {
+        // After inline editing, the first responder is the window itself.
+        // Restore focus to the terminal surface so keyboard input works.
+        guard let controller = windowController as? BaseTerminalController,
+              let focusedSurface = controller.focusedSurface
+        else { return }
+        makeFirstResponder(focusedSurface)
     }
 }

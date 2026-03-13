@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleName</key>
 	<string>Ghostree</string>
+	<key>NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac</key>
+	<true/>
 	<key>NSDockTilePlugIn</key>
 	<string>DockTilePlugin.plugin</string>
 	<key>CFBundleDocumentTypes</key>

@@ -33,6 +33,7 @@ A file for [guiding coding agents](https://agents.md/).
 
 - Don’t rebase a branch after it’s merged.
 - Sync upstream into `upstream-main` via `--ff-only`, then merge `upstream-main` into `main`.
+- **NEVER squash upstream commits.** Always use a real merge (`git merge`, not `git merge --squash`) when merging `upstream-main` into `main`. Squashing severs the git ancestry chain, which permanently inflates GitHub’s "behind" count and forces every future merge to re-resolve conflicts that git would otherwise auto-resolve. This has bitten us before and must not happen again.
 - Avoid force-pushing `main`; if needed, push a `legacy/...` backup ref first.
 
 ## Ghostree Project Context

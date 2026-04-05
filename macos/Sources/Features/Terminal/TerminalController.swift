@@ -184,20 +184,13 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             return defaultValue
         }
 
+        // Ghostree: The "tabs" and "hidden" titlebar styles don't work with the
+        // Worktrunk sidebar. "tabs" installs its own toolbar without a sidebar tracking
+        // separator, causing the sidebar to be truncated. "hidden" hides the titlebar
+        // entirely, removing the sidebar toggle. Override both to "transparent".
         let nib = switch config.macosTitlebarStyle {
         case "native": "Terminal"
-        case "hidden": "TerminalHiddenTitlebar"
-        case "transparent": "TerminalTransparentTitlebar"
-        case "tabs":
-#if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
-                "TerminalTabsTitlebarTahoe"
-            } else {
-                "TerminalTabsTitlebarVentura"
-            }
-#else
-            "TerminalTabsTitlebarVentura"
-#endif
+        case "hidden", "tabs", "transparent": "TerminalTransparentTitlebar"
         default: defaultValue
         }
 

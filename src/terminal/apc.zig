@@ -10,7 +10,7 @@ const log = std.log.scoped(.terminal_apc);
 /// The start/feed/end functions are meant to be called from the terminal.Stream
 /// apcStart, apcPut, and apcEnd functions, respectively.
 pub const Handler = struct {
-    state: State = .{ .inactive = {} },
+    state: State = .inactive,
 
     pub fn deinit(self: *Handler) void {
         self.state.deinit();
@@ -36,17 +36,17 @@ pub const Handler = struct {
                     'G' => self.state = if (comptime build_options.kitty_graphics)
                         .{ .kitty = kitty_gfx.CommandParser.init(alloc) }
                     else
-                        .{ .ignore = {} },
+                        .ignore,
 
                     // Unknown
-                    else => self.state = .{ .ignore = {} },
+                    else => self.state = .ignore,
                 }
             },
 
             .kitty => |*p| if (comptime build_options.kitty_graphics) {
                 p.feed(byte) catch |err| {
                     log.warn("kitty graphics protocol error: {}", .{err});
-                    self.state = .{ .ignore = {} };
+                    self.state = .ignore;
                 };
             } else unreachable,
         }
@@ -55,7 +55,7 @@ pub const Handler = struct {
     pub fn end(self: *Handler) ?Command {
         defer {
             self.state.deinit();
-            self.state = .{ .inactive = {} };
+            self.state = .inactive;
         }
 
         return switch (self.state) {

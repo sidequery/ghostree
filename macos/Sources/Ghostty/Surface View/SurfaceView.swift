@@ -446,18 +446,16 @@ extension Ghostty {
                     }
 #endif
                     .backport.onKeyPress(.return) { modifiers in
-                        guard let surface = surfaceView.surface else { return .ignored }
-                        let action = modifiers.contains(.shift)
-                        ? "navigate_search:previous"
-                        : "navigate_search:next"
-                        ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8)))
+                        if modifiers.contains(.shift) {
+                            _ = surfaceView.navigateSearchToPrevious()
+                        } else {
+                            _ = surfaceView.navigateSearchToNext()
+                        }
                         return .handled
                     }
 
                     Button(action: {
-                        guard let surface = surfaceView.surface else { return }
-                        let action = "navigate_search:next"
-                        ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8)))
+                        _ = surfaceView.navigateSearchToNext()
                     }, label: {
                         Image(systemName: "chevron.up")
                     })
@@ -623,8 +621,13 @@ extension Ghostty {
         }
 
         func updateOSView(_ scrollView: SurfaceScrollView, context: Context) {
-            // Nothing to do: SwiftUI automatically updates the frame size, and
-            // SurfaceScrollView handles the rest in response to that
+            // SwiftUI may defer frame updates under system load (e.g., memory
+            // pressure, heavy I/O) or when external window managers trigger rapid
+            // layout changes. When that happens, the scroll view's bounds can
+            // fall out of sync with the size reported by GeometryReader, causing
+            // the surface to render at stale dimensions.
+            guard scrollView.bounds.size != size else { return }
+            scrollView.needsLayout = true
         }
         #else
         func makeOSView(context: Context) -> SurfaceView {
@@ -1276,5 +1279,29 @@ extension Ghostty.SurfaceView {
         init(from startSearch: Ghostty.Action.StartSearch) {
             self.needle = startSearch.needle ?? ""
         }
+    }
+
+    func navigateSearchToNext() -> Bool {
+        guard let surface = self.surface else { return false }
+        let action = "navigate_search:next"
+        if !ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8))) {
+#if canImport(AppKit)
+            AppDelegate.logger.warning("action failed action=\(action)")
+#endif
+            return false
+        }
+        return true
+    }
+
+    func navigateSearchToPrevious() -> Bool {
+        guard let surface = self.surface else { return false }
+        let action = "navigate_search:previous"
+        if !ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8))) {
+#if canImport(AppKit)
+            AppDelegate.logger.warning("action failed action=\(action)")
+#endif
+            return false
+        }
+        return true
     }
 }

@@ -4,174 +4,8 @@ import SwiftUI
 import Combine
 import GhosttyKit
 
-final class WorktrunkSidebarState: ObservableObject {
-    @Published var columnVisibility: NavigationSplitViewVisibility
-    @Published var expandedRepoIDs: Set<UUID> = []
-    @Published var expandedWorktreePaths: Set<String> = []
-    @Published var selection: SidebarSelection?
-    @Published var isApplyingRemoteUpdate: Bool = false
-
-    init(
-        columnVisibility: NavigationSplitViewVisibility = .all,
-        expandedRepoIDs: Set<UUID> = [],
-        expandedWorktreePaths: Set<String> = [],
-        selection: SidebarSelection? = nil
-    ) {
-        self.columnVisibility = columnVisibility
-        self.expandedRepoIDs = expandedRepoIDs
-        self.expandedWorktreePaths = expandedWorktreePaths
-        self.selection = selection
-    }
-
-    func applyExpandedRepoIDs(
-        _ next: Set<UUID>,
-        listMode: WorktrunkSidebarListMode,
-        alwaysVisibleWorktreePaths: Set<String> = []
-    ) {
-        guard next != expandedRepoIDs else { return }
-        expandedRepoIDs = next
-        pruneSelectionForVisibility(
-            listMode: listMode,
-            expandedRepoIDs: next,
-            expandedWorktreePaths: expandedWorktreePaths,
-            alwaysVisibleWorktreePaths: alwaysVisibleWorktreePaths
-        )
-    }
-
-    func applyExpandedWorktreePaths(
-        _ next: Set<String>,
-        listMode: WorktrunkSidebarListMode,
-        alwaysVisibleWorktreePaths: Set<String> = []
-    ) {
-        guard next != expandedWorktreePaths else { return }
-        expandedWorktreePaths = next
-        pruneSelectionForVisibility(
-            listMode: listMode,
-            expandedRepoIDs: expandedRepoIDs,
-            expandedWorktreePaths: next,
-            alwaysVisibleWorktreePaths: alwaysVisibleWorktreePaths
-        )
-    }
-
-    func didCollapseRepo(id: UUID) {
-        guard let selection else { return }
-        switch selection {
-        case .repo(let repoID):
-            if repoID == id { return }
-        case .worktree(let repoID, _):
-            if repoID == id { self.selection = .repo(id: id) }
-        case .session(_, let repoID, _):
-            if repoID == id { self.selection = .repo(id: id) }
-        }
-    }
-
-    func didCollapseWorktree(repoID: UUID, path: String) {
-        guard let selection else { return }
-        switch selection {
-        case .session(_, let selectedRepoID, let worktreePath):
-            if selectedRepoID == repoID, worktreePath == path {
-                self.selection = .worktree(repoID: repoID, path: path)
-            }
-        default:
-            return
-        }
-    }
-
-    func reconcile(with store: any WorktrunkSidebarReconcilingStore, listMode: WorktrunkSidebarListMode) {
-        let validRepoIDs = store.sidebarRepoIDs
-        let validWorktreePaths = store.sidebarWorktreePaths
-
-        let nextExpandedRepoIDs = expandedRepoIDs.intersection(validRepoIDs)
-        if nextExpandedRepoIDs != expandedRepoIDs {
-            expandedRepoIDs = nextExpandedRepoIDs
-        }
-
-        let nextExpandedWorktreePaths = expandedWorktreePaths.intersection(validWorktreePaths)
-        if nextExpandedWorktreePaths != expandedWorktreePaths {
-            expandedWorktreePaths = nextExpandedWorktreePaths
-        }
-
-        guard let selection else { return }
-
-        let nextSelection: SidebarSelection?
-        switch selection {
-        case .repo(let id):
-            nextSelection = validRepoIDs.contains(id) ? selection : nil
-        case .worktree(let repoID, let path):
-            if !validRepoIDs.contains(repoID) {
-                nextSelection = nil
-            } else if validWorktreePaths.contains(path) {
-                nextSelection = selection
-            } else {
-                nextSelection = .repo(id: repoID)
-            }
-        case .session(let id, let repoID, let worktreePath):
-            if !validRepoIDs.contains(repoID) {
-                nextSelection = nil
-            } else if !validWorktreePaths.contains(worktreePath) {
-                nextSelection = .repo(id: repoID)
-            } else if store.sessions(for: worktreePath).contains(where: { $0.id == id }) {
-                nextSelection = selection
-            } else {
-                nextSelection = .worktree(repoID: repoID, path: worktreePath)
-            }
-        }
-
-        if nextSelection != selection {
-            self.selection = nextSelection
-        }
-    }
-
-    private func pruneSelectionForVisibility(
-        listMode: WorktrunkSidebarListMode,
-        expandedRepoIDs: Set<UUID>,
-        expandedWorktreePaths: Set<String>,
-        alwaysVisibleWorktreePaths: Set<String>
-    ) {
-        guard let selection else { return }
-        switch selection {
-        case .repo:
-            return
-        case .worktree(let repoID, let path):
-            if listMode == .nestedByRepo,
-               !expandedRepoIDs.contains(repoID),
-               !alwaysVisibleWorktreePaths.contains(path) {
-                self.selection = .repo(id: repoID)
-            }
-        case .session(_, let repoID, let worktreePath):
-            if listMode == .nestedByRepo,
-               !expandedRepoIDs.contains(repoID),
-               !alwaysVisibleWorktreePaths.contains(worktreePath) {
-                self.selection = .repo(id: repoID)
-                return
-            }
-            if !expandedWorktreePaths.contains(worktreePath) {
-                self.selection = .worktree(repoID: repoID, path: worktreePath)
-            }
-        }
-    }
-}
-
-protocol WorktrunkSidebarReconcilingStore {
-    var repositories: [WorktrunkStore.Repository] { get }
-    var sidebarRepoIDs: Set<UUID> { get }
-    var sidebarWorktreePaths: Set<String> { get }
-    func worktrees(for repositoryID: UUID) -> [WorktrunkStore.Worktree]
-    func sessions(for worktreePath: String) -> [AISession]
-}
-
-enum SidebarSelection: Hashable {
-    case repo(id: UUID)
-    case worktree(repoID: UUID, path: String)
-    case session(id: String, repoID: UUID, worktreePath: String)
-}
 /// A classic, tabbed terminal experience.
 class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Controller {
-    private static let worktreeTabControllers = NSMapTable<NSString, TerminalController>(
-        keyOptions: .copyIn,
-        valueOptions: .weakMemory
-    )
-
     override var windowNibName: NSNib.Name? {
         let defaultValue = "Terminal"
 
@@ -184,14 +18,20 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             return defaultValue
         }
 
-        // Ghostree: The "tabs" and "hidden" titlebar styles don't work with the
-        // Worktrunk sidebar. "tabs" installs its own toolbar without a sidebar tracking
-        // separator, causing the sidebar to be truncated. "hidden" hides the titlebar
-        // entirely, removing the sidebar toggle. Override both to "transparent".
         let nib = switch config.macosTitlebarStyle {
-        case "native": "Terminal"
-        case "hidden", "tabs", "transparent": "TerminalTransparentTitlebar"
-        default: defaultValue
+        case .native: "Terminal"
+        case .hidden: "TerminalHiddenTitlebar"
+        case .transparent: "TerminalTransparentTitlebar"
+        case .tabs:
+#if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                "TerminalTabsTitlebarTahoe"
+            } else {
+                "TerminalTabsTitlebarVentura"
+            }
+#else
+            "TerminalTabsTitlebarVentura"
+#endif
         }
 
         return nib
@@ -206,33 +46,20 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     /// changes in the list.
     private var tabWindowsHash: Int = 0
 
+    /// The initial window presentation is deferred by one runloop turn in a few places so
+    /// AppKit can settle tab/window state first. Close actions must cancel it to avoid
+    /// re-showing a tab that was already closed.
+    private var pendingInitialPresentation: DispatchWorkItem?
+
     /// This is set to false by init if the window managed by this controller should not be restorable.
     /// For example, terminals executing custom scripts are not restorable.
     private var restorable: Bool = true
 
     /// The configuration derived from the Ghostty config so we don't need to rely on references.
     private(set) var derivedConfig: DerivedConfig
-    private var lastTitlebarFont: NSFont?
-
-    private let worktrunkSidebarState: WorktrunkSidebarState
-    private let openTabsModel = WorktrunkOpenTabsModel()
-    private var worktrunkSidebarSyncCancellables: Set<AnyCancellable> = []
-    private var worktrunkSidebarSyncApplyingRemoteUpdate: Bool = false
-    private let gitDiffSidebarState = GitDiffSidebarState()
-    private var lastTabSwitchRefreshAt: Date?
-    private let tabSwitchRefreshThrottle: TimeInterval = 0.15
-    private var pendingTabSwitchRefresh: DispatchWorkItem?
-    private var lastTabSwitchSurfaceID: UUID?
-
-    private(set) var worktreeTabRootPath: String? {
-        didSet { syncWorktreeTabTitle() }
-    }
 
     /// The notification cancellable for focused surface property changes.
     private var surfaceAppearanceCancellables: Set<AnyCancellable> = []
-
-    /// This will be set to the initial frame of the window from the xib on load.
-    private var initialFrame: NSRect?
 
     init(_ ghostty: Ghostty.App,
          withBaseConfig base: Ghostty.SurfaceConfiguration? = nil,
@@ -246,24 +73,11 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         // restoration.
         self.restorable = (base?.command ?? "") == ""
 
-        if let parent,
-           let parentController = parent.windowController as? TerminalController {
-            self.worktrunkSidebarState = WorktrunkSidebarState(
-                columnVisibility: parentController.worktrunkSidebarState.columnVisibility,
-                expandedRepoIDs: parentController.worktrunkSidebarState.expandedRepoIDs,
-                expandedWorktreePaths: parentController.worktrunkSidebarState.expandedWorktreePaths,
-                selection: parentController.worktrunkSidebarState.selection
-            )
-        } else {
-            self.worktrunkSidebarState = WorktrunkSidebarState(columnVisibility: .all)
-        }
-
         // Setup our initial derived config based on the current app config
         self.derivedConfig = DerivedConfig(ghostty.config)
 
-        var baseWithHooks = base ?? Ghostty.SurfaceConfiguration()
-        TerminalAgentHooks.apply(to: &baseWithHooks)
-        super.init(ghostty, baseConfig: baseWithHooks, surfaceTree: tree)
+        super.init(ghostty, baseConfig: base, surfaceTree: tree)
+
         // Setup our notifications for behaviors
         let center = NotificationCenter.default
         center.addObserver(
@@ -326,164 +140,30 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     }
 
     deinit {
-        if let root = worktreeTabRootPath {
-            Self.worktreeTabControllers.removeObject(forKey: root as NSString)
-        }
-
         // Remove all of our notificationcenter subscriptions
         let center = NotificationCenter.default
         center.removeObserver(self)
     }
 
-    private static func standardizedPath(_ path: String) -> String {
-        URL(fileURLWithPath: path).standardizedFileURL.path
+    private func cancelPendingInitialPresentation() {
+        pendingInitialPresentation?.cancel()
+        pendingInitialPresentation = nil
     }
 
-    private func setWorktreeTabRootPath(_ path: String?) {
-        let standardized = path.map(Self.standardizedPath)
+    private func scheduleInitialPresentation(_ block: @escaping () -> Void) {
+        cancelPendingInitialPresentation()
 
-        if let old = worktreeTabRootPath {
-            Self.worktreeTabControllers.removeObject(forKey: old as NSString)
+        var scheduledWorkItem: DispatchWorkItem?
+        scheduledWorkItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            defer { self.pendingInitialPresentation = nil }
+            guard pendingInitialPresentation?.isCancelled == false else { return }
+            block()
         }
 
-        worktreeTabRootPath = standardized
-
-        if let standardized {
-            Self.worktreeTabControllers.setObject(self, forKey: standardized as NSString)
-        }
-
-        openTabsModel.refresh(for: window)
-    }
-
-    private func syncWorktreeTabTitle() {
-        guard WorktrunkPreferences.worktreeTabsEnabled, let root = worktreeTabRootPath else {
-            managedTitleOverride = nil
-            return
-        }
-
-        managedTitleOverride = (root as NSString).abbreviatingWithTildeInPath
-    }
-
-    func applyWorktreeTabPreferences() {
-        syncWorktreeTabTitle()
-    }
-
-    func restoreWorktreeTabRootPath(_ path: String?) {
-        let sanitized = RestorablePath.normalizedExistingDirectoryPath(path)
-        setWorktreeTabRootPath(sanitized)
-    }
-
-    private static func existingWorktreeTabController(forWorktreePath path: String) -> TerminalController? {
-        let root = standardizedPath(path)
-        if let existing = worktreeTabControllers.object(forKey: root as NSString) {
-            return existing
-        }
-
-        if let controller = TerminalController.all.first(where: { $0.worktreeTabRootPath == root }) {
-            worktreeTabControllers.setObject(controller, forKey: root as NSString)
-            return controller
-        }
-
-        for controller in TerminalController.all {
-            for surfaceView in controller.surfaceTree {
-                guard let pwd = surfaceView.pwd else { continue }
-                let pwdPath = standardizedPath(pwd)
-                let rootPrefix = root.hasSuffix("/") ? root : (root + "/")
-                if pwdPath == root || pwdPath.hasPrefix(rootPrefix) {
-                    controller.setWorktreeTabRootPath(root)
-                    worktreeTabControllers.setObject(controller, forKey: root as NSString)
-                    return controller
-                }
-            }
-        }
-
-        return nil
-    }
-
-    private static func ensureWorktreeTabController(
-        ghostty: Ghostty.App,
-        parentWindow: NSWindow?,
-        worktreePath: String,
-        initialBaseConfig: Ghostty.SurfaceConfiguration
-    ) -> (controller: TerminalController, isNew: Bool) {
-        if let existing = existingWorktreeTabController(forWorktreePath: worktreePath) {
-            return (existing, false)
-        }
-
-        let parent = parentWindow ?? preferredParent?.window
-        let controller: TerminalController = {
-            if let created = TerminalController.newTab(ghostty, from: parent, withBaseConfig: initialBaseConfig) {
-                return created
-            }
-            return TerminalController.newWindow(ghostty, withBaseConfig: initialBaseConfig, withParent: parent)
-        }()
-
-        controller.setWorktreeTabRootPath(worktreePath)
-        controller.syncWorktreeTabTitle()
-        return (controller, true)
-    }
-
-    private func worktreeTabNextSplitPlacement() -> (anchor: Ghostty.SurfaceView, direction: SplitTree<Ghostty.SurfaceView>.NewDirection)? {
-        guard let root = surfaceTree.root else { return nil }
-        let allLeaves = root.leaves()
-        guard let first = allLeaves.first else { return nil }
-
-        // Start with two columns.
-        if allLeaves.count == 1 {
-            return (first, .right)
-        }
-
-        // After two columns exist, we fill rows in a 2-column grid:
-        // 3rd -> split left column down
-        // 4th -> split right column down
-        // 5th+ -> keep adding rows to the shorter column, bottom-first (ties -> left).
-        if case .split(let split) = root, split.direction == .horizontal {
-            let leftLeaves = split.left.leaves()
-            let rightLeaves = split.right.leaves()
-
-            if leftLeaves.count <= rightLeaves.count {
-                return (leftLeaves.last ?? first, .down)
-            } else {
-                return (rightLeaves.last ?? first, .down)
-            }
-        }
-
-        // If the tree doesn't match the expected layout (e.g. user-made splits),
-        // fall back to adding a row at the end.
-        return (allLeaves.last ?? first, .down)
-    }
-
-    func openWorktreeTabNewSession(baseConfig: Ghostty.SurfaceConfiguration) {
-        guard WorktrunkPreferences.worktreeTabsEnabled, worktreeTabRootPath != nil else { return }
-        guard let (anchor, direction) = worktreeTabNextSplitPlacement() else { return }
-        _ = newSplit(at: anchor, direction: direction, baseConfig: baseConfig)
-    }
-
-    private func openWorktreeTabSession(worktreePath: String, baseConfig: Ghostty.SurfaceConfiguration) {
-        var initialConfig = baseConfig
-        initialConfig.workingDirectory = initialConfig.workingDirectory ?? worktreePath
-        TerminalAgentHooks.apply(to: &initialConfig)
-
-        let (controller, isNew) = Self.ensureWorktreeTabController(
-            ghostty: ghostty,
-            parentWindow: window,
-            worktreePath: worktreePath,
-            initialBaseConfig: initialConfig
-        )
-
-        controller.window?.makeKeyAndOrderFront(nil)
-        if !NSApp.isActive {
-            NSApp.activate(ignoringOtherApps: true)
-        }
-
-        if controller.worktreeTabRootPath == nil {
-            controller.setWorktreeTabRootPath(worktreePath)
-        }
-
-        // If this is the first terminal in the tab, the tab creation already created the surface.
-        // Otherwise, open a new split in the worktree tab.
-        guard !isNew else { return }
-        controller.openWorktreeTabNewSession(baseConfig: initialConfig)
+        let workItem = scheduledWorkItem!
+        pendingInitialPresentation = workItem
+        DispatchQueue.main.async(execute: workItem)
     }
 
     // MARK: Base Controller Overrides
@@ -546,7 +226,9 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         if all.count > 1 {
             lastCascadePoint = window.cascadeTopLeft(from: lastCascadePoint)
         } else {
-            lastCascadePoint = window.cascadeTopLeft(from: NSPoint(x: window.frame.minX, y: window.frame.maxY))
+            // We assume the window frame is already correct at this point,
+            // so we pass .zero to let cascade use the current frame position.
+            lastCascadePoint = window.cascadeTopLeft(from: .zero)
         }
     }
 
@@ -569,10 +251,11 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         withBaseConfig baseConfig: Ghostty.SurfaceConfiguration? = nil,
         withParent explicitParent: NSWindow? = nil
     ) -> TerminalController {
+        let c = TerminalController.init(ghostty, withBaseConfig: baseConfig)
+
         // Get our parent. Our parent is the one explicitly given to us,
         // otherwise the focused terminal, otherwise an arbitrary one.
         let parent: NSWindow? = explicitParent ?? preferredParent?.window
-        let c = TerminalController.init(ghostty, withBaseConfig: baseConfig, parent: parent)
 
         if let parent, parent.styleMask.contains(.fullScreen) {
             // If our previous window was fullscreen then we want our new window to
@@ -600,7 +283,9 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         // We're dispatching this async because otherwise the lastCascadePoint doesn't
         // take effect. Our best theory is there is some next-event-loop-tick logic
         // that Cocoa is doing that we need to be after.
-        DispatchQueue.main.async {
+        c.scheduleInitialPresentation {
+            c.showWindow(self)
+
             // Only cascade if we aren't fullscreen.
             if let window = c.window {
                 if !window.styleMask.contains(.fullScreen) {
@@ -608,8 +293,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                     Self.applyCascade(to: window, hasFixedPos: hasFixedPos)
                 }
             }
-
-            c.showWindow(self)
 
             // All new_window actions force our app to be active, so that the new
             // window is focused and visible.
@@ -662,7 +345,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         // Calculate the target frame based on the tree's view bounds
         let treeSize: CGSize? = tree.root?.viewBounds()
 
-        DispatchQueue.main.async {
+        c.scheduleInitialPresentation {
+            c.showWindow(self)
             if let window = c.window {
                 // If we have a tree size, resize the window's content to match
                 if let treeSize, treeSize.width > 0, treeSize.height > 0 {
@@ -680,8 +364,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                     }
                 }
             }
-
-            c.showWindow(self)
         }
 
         // Setup our undo
@@ -737,7 +419,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         }
 
         // Create a new window and add it to the parent
-        let controller = TerminalController.init(ghostty, withBaseConfig: baseConfig, parent: parent)
+        let controller = TerminalController.init(ghostty, withBaseConfig: baseConfig)
         guard let window = controller.window else { return controller }
 
         // If the parent is miniaturized, then macOS exhibits really strange behaviors
@@ -778,7 +460,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         // We're dispatching this async because otherwise the lastCascadePoint doesn't
         // take effect. Our best theory is there is some next-event-loop-tick logic
         // that Cocoa is doing that we need to be after.
-        DispatchQueue.main.async {
+        controller.scheduleInitialPresentation {
             // Only cascade if we aren't fullscreen and are alone in the tab group.
             if !window.styleMask.contains(.fullScreen) &&
                 window.tabGroup?.windows.count ?? 1 == 1 {
@@ -887,76 +569,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 }
             }
         }
-
-        openTabsModel.refresh(for: window)
-    }
-
-    private func focusNativeTab(windowNumber: Int) {
-        guard let window else { return }
-        guard let tabGroup = window.tabGroup else { return }
-        guard let target = tabGroup.windows.first(where: { $0.windowNumber == windowNumber }) else { return }
-        target.makeKeyAndOrderFront(nil)
-        if !NSApp.isActive {
-            NSApp.activate(ignoringOtherApps: true)
-        }
-    }
-
-    private func closeNativeTab(windowNumber: Int) {
-        guard let window else { return }
-        let candidateWindows = window.tabGroup?.windows ?? [window]
-        guard let targetWindow = candidateWindows.first(where: { $0.windowNumber == windowNumber }) else { return }
-        guard let targetController = targetWindow.windowController as? TerminalController else { return }
-        targetController.closeTab(nil)
-    }
-
-    private func moveNativeTabBefore(movingWindowNumber: Int, targetWindowNumber: Int) {
-        guard movingWindowNumber != targetWindowNumber else { return }
-        guard let window else { return }
-        guard let tabGroup = window.tabGroup, tabGroup.windows.count > 1 else { return }
-        guard let movingWindow = tabGroup.windows.first(where: { $0.windowNumber == movingWindowNumber }) else { return }
-        guard let targetWindow = tabGroup.windows.first(where: { $0.windowNumber == targetWindowNumber }) else { return }
-
-        if #available(macOS 26, *) {
-            if window is TitlebarTabsTahoeTerminalWindow {
-                tabGroup.removeWindow(movingWindow)
-                targetWindow.addTabbedWindowSafely(movingWindow, ordered: .below)
-                relabelTabs()
-                return
-            }
-        }
-
-        NSAnimationContext.beginGrouping()
-        NSAnimationContext.current.duration = 0
-        tabGroup.removeWindow(movingWindow)
-        targetWindow.addTabbedWindowSafely(movingWindow, ordered: .below)
-        NSAnimationContext.endGrouping()
-
-        relabelTabs()
-    }
-
-    private func moveNativeTabAfter(movingWindowNumber: Int, targetWindowNumber: Int) {
-        guard movingWindowNumber != targetWindowNumber else { return }
-        guard let window else { return }
-        guard let tabGroup = window.tabGroup, tabGroup.windows.count > 1 else { return }
-        guard let movingWindow = tabGroup.windows.first(where: { $0.windowNumber == movingWindowNumber }) else { return }
-        guard let targetWindow = tabGroup.windows.first(where: { $0.windowNumber == targetWindowNumber }) else { return }
-
-        if #available(macOS 26, *) {
-            if window is TitlebarTabsTahoeTerminalWindow {
-                tabGroup.removeWindow(movingWindow)
-                targetWindow.addTabbedWindowSafely(movingWindow, ordered: .above)
-                relabelTabs()
-                return
-            }
-        }
-
-        NSAnimationContext.beginGrouping()
-        NSAnimationContext.current.duration = 0
-        tabGroup.removeWindow(movingWindow)
-        targetWindow.addTabbedWindowSafely(movingWindow, ordered: .above)
-        NSAnimationContext.endGrouping()
-
-        relabelTabs()
     }
 
     private func fixTabBar() {
@@ -1002,17 +614,14 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
         // Set the font for the window and tab titles.
         if let titleFontName = surfaceConfig.windowTitleFontFamily {
-            let font = NSFont(name: titleFontName, size: NSFont.systemFontSize)
-            window.titlebarFont = font
-            lastTitlebarFont = font
+            window.titlebarFont = NSFont(name: titleFontName, size: NSFont.systemFontSize)
         } else {
             window.titlebarFont = nil
-            lastTitlebarFont = nil
         }
 
         // Call this last in case it uses any of the properties above.
         window.syncAppearance(surfaceConfig)
-        terminalGlassContainer?.ghosttyConfigDidChange(ghostty.config, preferredBackgroundColor: window.preferredBackgroundColor)
+        terminalViewContainer?.ghosttyConfigDidChange(ghostty.config, preferredBackgroundColor: window.preferredBackgroundColor)
     }
 
     /// Adjusts the given frame for the configured window position.
@@ -1066,6 +675,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             closeWindowImmediately()
             return
         }
+
+        cancelPendingInitialPresentation()
 
         // Undo
         if let undoManager, let undoState {
@@ -1185,6 +796,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     func closeWindowImmediately() {
         guard let window = window else { return }
 
+        cancelPendingInitialPresentation()
+
         registerUndoForCloseWindow()
 
         if let tabGroup = window.tabGroup, tabGroup.windows.count > 1 {
@@ -1193,6 +806,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
                 // This prevents unnecessary undos registered since AppKit may
                 // process them on later ticks so we can't just disable undo registration.
                 if let controller = window.windowController as? TerminalController {
+                    controller.cancelPendingInitialPresentation()
                     controller.surfaceTree = .init()
                 }
 
@@ -1452,72 +1066,29 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         }
 
         // Initialize our content view to the SwiftUI root
-        let worktrunkStore = (NSApp.delegate as? AppDelegate)?.worktrunkStore ?? WorktrunkStore()
-        window.contentView = TerminalWorkspaceViewContainer(
-            ghostty: self.ghostty,
-            viewModel: self,
-            delegate: self,
-            worktrunkStore: worktrunkStore,
-            worktrunkSidebarState: worktrunkSidebarState,
-            openTabsModel: openTabsModel,
-            gitDiffSidebarState: gitDiffSidebarState,
-            openWorktree: { [weak self] path in
-                self?.openWorktree(atPath: path)
-            },
-            openWorktreeAgent: { [weak self] path, agent in
-                self?.openWorktreeAgentSession(atPath: path, agent: agent)
-            },
-            resumeSession: { [weak self] session in
-                self?.resumeAISession(session)
-            },
-            focusNativeTab: { [weak self] windowNumber in
-                self?.focusNativeTab(windowNumber: windowNumber)
-            },
-            closeNativeTab: { [weak self] windowNumber in
-                self?.closeNativeTab(windowNumber: windowNumber)
-            },
-            moveNativeTabBefore: { [weak self] moving, target in
-                self?.moveNativeTabBefore(movingWindowNumber: moving, targetWindowNumber: target)
-            },
-            moveNativeTabAfter: { [weak self] moving, target in
-                self?.moveNativeTabAfter(movingWindowNumber: moving, targetWindowNumber: target)
-            },
-            onSidebarWidthChange: { [weak self] width in
-                self?.updateWorktrunkTitlebarWidth(width)
-            },
-            onGitDiffWorktreeSelect: { [weak self] path in
-                self?.onWorktrunkSelectionChange(path)
-            }
-        )
-        installWorktrunkTitlebar()
-        installWorktrunkSidebarSync()
+        let container = TerminalViewContainer {
+            TerminalView(ghostty: ghostty, viewModel: self, delegate: self)
+        }
+
+        // Set the initial content size on the container so that
+        // intrinsicContentSize returns the correct value immediately,
+        // without waiting for @FocusedValue to propagate through the
+        // SwiftUI focus chain.
+        container.initialContentSize = focusedSurface?.initialSize
+
+        window.contentView = container
 
         // If we have a default size, we want to apply it.
         if let defaultSize {
-            switch defaultSize {
-            case .frame:
-                // Frames can be applied immediately
-                defaultSize.apply(to: window)
+            defaultSize.apply(to: window)
 
-            case .contentIntrinsicSize:
-                // Content intrinsic size requires a short delay so that AppKit
-                // can layout our SwiftUI views.
-                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(40)) { [weak self, weak window] in
-                    guard let self, let window else { return }
-                    defaultSize.apply(to: window)
-                    if let screen = window.screen ?? NSScreen.main {
-                        let frame = self.adjustForWindowPosition(frame: window.frame, on: screen)
-                        window.setFrameOrigin(frame.origin)
-                    }
+            if case .contentIntrinsicSize = defaultSize {
+                if let screen = window.screen ?? NSScreen.main {
+                    let frame = self.adjustForWindowPosition(frame: window.frame, on: screen)
+                    window.setFrameOrigin(frame.origin)
                 }
             }
         }
-
-        // Store our initial frame so we can know our default later. This MUST
-        // be after the defaultSize call above so that we don't re-apply our frame.
-        // Note: we probably want to set this on the first frame change or something
-        // so it respects cascade.
-        initialFrame = window.frame
 
         // In various situations, macOS automatically tabs new windows. Ghostty handles
         // its own tabbing so we DONT want this behavior. This detects this scenario and undoes
@@ -1543,472 +1114,34 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         // apply this based on the root config but change it later based on surface
         // config (see focused surface change callback).
         syncAppearance(.init(config))
-
-        openTabsModel.refresh(for: window)
     }
 
-    private func installWorktrunkSidebarSync() {
-        guard worktrunkSidebarSyncCancellables.isEmpty else { return }
+    /// Setup correct window frame before showing the window
+    override func showWindow(_ sender: Any?) {
+        guard let terminalWindow = window as? TerminalWindow else { return }
 
-        worktrunkSidebarState.$columnVisibility
-            .removeDuplicates()
-            .sink { [weak self] visibility in
-                if visibility == .detailOnly {
-                    self?.updateWorktrunkTitlebarWidth(0)
-                }
-                self?.syncWorktrunkSidebarVisibilityToTabGroup(visibility)
-            }
-            .store(in: &worktrunkSidebarSyncCancellables)
-
-        worktrunkSidebarState.$expandedRepoIDs
-            .removeDuplicates()
-            .debounce(for: .milliseconds(75), scheduler: RunLoop.main)
-            .sink { [weak self] expandedRepoIDs in
-                self?.syncWorktrunkSidebarExpandedRepoIDsToTabGroup(expandedRepoIDs)
-            }
-            .store(in: &worktrunkSidebarSyncCancellables)
-
-        worktrunkSidebarState.$expandedWorktreePaths
-            .removeDuplicates()
-            .debounce(for: .milliseconds(75), scheduler: RunLoop.main)
-            .sink { [weak self] expandedWorktreePaths in
-                self?.syncWorktrunkSidebarExpandedWorktreePathsToTabGroup(expandedWorktreePaths)
-            }
-            .store(in: &worktrunkSidebarSyncCancellables)
-
-        worktrunkSidebarState.$selection
-            .removeDuplicates()
-            .sink { [weak self] selection in
-                self?.syncWorktrunkSidebarSelectionToTabGroup(selection)
-            }
-            .store(in: &worktrunkSidebarSyncCancellables)
-    }
-
-    private func syncWorktrunkSidebarVisibilityToTabGroup(_ visibility: NavigationSplitViewVisibility) {
-        guard !worktrunkSidebarSyncApplyingRemoteUpdate else { return }
-        guard let window else { return }
-        guard let tabGroup = window.tabGroup, tabGroup.windows.count > 1 else { return }
-
-        for sibling in tabGroup.windows where sibling != window {
-            guard let controller = sibling.windowController as? TerminalController else { continue }
-            controller.applySyncedWorktrunkSidebarVisibility(visibility)
-        }
-    }
-
-    private func syncWorktrunkSidebarExpandedRepoIDsToTabGroup(_ expandedRepoIDs: Set<UUID>) {
-        guard !worktrunkSidebarSyncApplyingRemoteUpdate else { return }
-        guard let window else { return }
-        guard let tabGroup = window.tabGroup, tabGroup.windows.count > 1 else { return }
-
-        for sibling in tabGroup.windows where sibling != window {
-            guard let controller = sibling.windowController as? TerminalController else { continue }
-            controller.applySyncedWorktrunkSidebarExpandedRepoIDs(expandedRepoIDs)
-        }
-    }
-
-    private func syncWorktrunkSidebarExpandedWorktreePathsToTabGroup(_ expandedWorktreePaths: Set<String>) {
-        guard !worktrunkSidebarSyncApplyingRemoteUpdate else { return }
-        guard let window else { return }
-        guard let tabGroup = window.tabGroup, tabGroup.windows.count > 1 else { return }
-
-        for sibling in tabGroup.windows where sibling != window {
-            guard let controller = sibling.windowController as? TerminalController else { continue }
-            controller.applySyncedWorktrunkSidebarExpandedWorktreePaths(expandedWorktreePaths)
-        }
-    }
-
-    private func syncWorktrunkSidebarSelectionToTabGroup(_ selection: SidebarSelection?) {
-        guard !worktrunkSidebarSyncApplyingRemoteUpdate else { return }
-        guard let window else { return }
-        guard let tabGroup = window.tabGroup, tabGroup.windows.count > 1 else { return }
-
-        for sibling in tabGroup.windows where sibling != window {
-            guard let controller = sibling.windowController as? TerminalController else { continue }
-            controller.applySyncedWorktrunkSidebarSelection(selection)
-        }
-    }
-
-    private func currentWorktrunkSidebarListMode() -> WorktrunkSidebarListMode {
-        (NSApp.delegate as? AppDelegate)?.worktrunkStore.sidebarListMode ?? .flatWorktrees
-    }
-
-    private func currentWorktrunkAlwaysVisibleWorktreePaths() -> Set<String> {
-        guard WorktrunkPreferences.sidebarTabsEnabled else { return [] }
-        guard currentWorktrunkSidebarListMode() == .nestedByRepo else { return [] }
-        return Set(openTabsModel.tabs.compactMap(\.worktreeRootPath).map(Self.standardizedPath))
-    }
-
-    private func applySyncedWorktrunkSidebarVisibility(_ visibility: NavigationSplitViewVisibility) {
-        guard worktrunkSidebarState.columnVisibility != visibility else { return }
-        worktrunkSidebarState.isApplyingRemoteUpdate = true
-        worktrunkSidebarSyncApplyingRemoteUpdate = true
-        defer {
-            worktrunkSidebarSyncApplyingRemoteUpdate = false
-            worktrunkSidebarState.isApplyingRemoteUpdate = false
-        }
-        worktrunkSidebarState.columnVisibility = visibility
-    }
-
-    private func applySyncedWorktrunkSidebarExpandedRepoIDs(_ expandedRepoIDs: Set<UUID>) {
-        guard worktrunkSidebarState.expandedRepoIDs != expandedRepoIDs else { return }
-        worktrunkSidebarState.isApplyingRemoteUpdate = true
-        worktrunkSidebarSyncApplyingRemoteUpdate = true
-        defer {
-            worktrunkSidebarSyncApplyingRemoteUpdate = false
-            worktrunkSidebarState.isApplyingRemoteUpdate = false
-        }
-        worktrunkSidebarState.applyExpandedRepoIDs(
-            expandedRepoIDs,
-            listMode: currentWorktrunkSidebarListMode(),
-            alwaysVisibleWorktreePaths: currentWorktrunkAlwaysVisibleWorktreePaths()
+        // Set the initial window position. This must happen after the window
+        // is fully set up (content view, toolbar, default size) so that
+        // decorations added by subclass awakeFromNib (e.g. toolbar for tabs
+        // style) don't change the frame after the position is restored.
+        let originChanged = terminalWindow.setInitialWindowPosition(
+            x: derivedConfig.windowPositionX,
+            y: derivedConfig.windowPositionY,
         )
-    }
-
-    private func applySyncedWorktrunkSidebarExpandedWorktreePaths(_ expandedWorktreePaths: Set<String>) {
-        guard worktrunkSidebarState.expandedWorktreePaths != expandedWorktreePaths else { return }
-        worktrunkSidebarState.isApplyingRemoteUpdate = true
-        worktrunkSidebarSyncApplyingRemoteUpdate = true
-        defer {
-            worktrunkSidebarSyncApplyingRemoteUpdate = false
-            worktrunkSidebarState.isApplyingRemoteUpdate = false
-        }
-        worktrunkSidebarState.applyExpandedWorktreePaths(
-            expandedWorktreePaths,
-            listMode: currentWorktrunkSidebarListMode(),
-            alwaysVisibleWorktreePaths: currentWorktrunkAlwaysVisibleWorktreePaths()
+        let restored = LastWindowPosition.shared.restore(
+            terminalWindow,
+            origin: !originChanged,
+            size: defaultSize == nil,
         )
-    }
 
-    private func applySyncedWorktrunkSidebarSelection(_ selection: SidebarSelection?) {
-        guard worktrunkSidebarState.selection != selection else { return }
-        worktrunkSidebarState.isApplyingRemoteUpdate = true
-        worktrunkSidebarSyncApplyingRemoteUpdate = true
-        defer {
-            worktrunkSidebarSyncApplyingRemoteUpdate = false
-            worktrunkSidebarState.isApplyingRemoteUpdate = false
-        }
-        worktrunkSidebarState.selection = selection
-    }
-
-    private func syncWorktrunkSidebarStateToTabGroup() {
-        syncWorktrunkSidebarVisibilityToTabGroup(worktrunkSidebarState.columnVisibility)
-        syncWorktrunkSidebarExpandedRepoIDsToTabGroup(worktrunkSidebarState.expandedRepoIDs)
-        syncWorktrunkSidebarExpandedWorktreePathsToTabGroup(worktrunkSidebarState.expandedWorktreePaths)
-        syncWorktrunkSidebarSelectionToTabGroup(worktrunkSidebarState.selection)
-    }
-
-    private func syncSidebarSelectionToActiveTab() {
-        guard WorktrunkPreferences.worktreeTabsEnabled,
-              let rootPath = worktreeTabRootPath,
-              let appDelegate = NSApp.delegate as? AppDelegate else { return }
-
-        let store = appDelegate.worktrunkStore
-        for repo in store.repositories
-            where store.worktrees(for: repo.id).contains(where: { $0.path == rootPath }) {
-            let newSelection = SidebarSelection.worktree(repoID: repo.id, path: rootPath)
-            guard worktrunkSidebarState.selection != newSelection else { return }
-            applySyncedWorktrunkSidebarSelection(newSelection)
-            syncWorktrunkSidebarSelectionToTabGroup(newSelection)
-            return
-        }
-    }
-
-    private func installWorktrunkTitlebar() {
-        guard let window else { return }
-        guard window.styleMask.contains(.titled) else { return }
-
-        // TitlebarTabs windows have their own toolbar - don't override
-        if window is TitlebarTabsTahoeTerminalWindow || window is TitlebarTabsVenturaTerminalWindow {
-            return
+        // If nothing is changed for the frame,
+        // we should center the window
+        if !originChanged, !restored {
+            // This doesn't work in `windowDidLoad` somehow
+            terminalWindow.center()
         }
 
-        // Create a WorktrunkToolbar with sidebar toggle button
-        if window.toolbar == nil {
-            // Add fullSizeContentView for sidebarTrackingSeparator to work
-            window.styleMask.insert(.fullSizeContentView)
-            let toolbar = WorktrunkToolbar(target: self)
-            window.toolbar = toolbar
-        }
-
-        window.titleVisibility = .hidden
-        if let terminalWindow = window as? TerminalWindow {
-            terminalWindow.toolbarStyle = .unified
-            if let toolbar = window.toolbar as? WorktrunkToolbar {
-                toolbar.titleText = window.title
-                toolbar.titleTextFont = terminalWindow.titlebarFont ?? NSFont.titleBarFont(ofSize: NSFont.systemFontSize)
-                toolbar.titleTextColor = window.isKeyWindow ? .labelColor : .secondaryLabelColor
-            }
-        }
-    }
-
-    @objc func toggleWorktrunkSidebar(_ sender: Any?) {
-        switch worktrunkSidebarState.columnVisibility {
-        case .detailOnly:
-            worktrunkSidebarState.columnVisibility = .all
-        default:
-            worktrunkSidebarState.columnVisibility = .detailOnly
-        }
-    }
-
-    @objc func toggleSidebar(_ sender: Any?) {
-        toggleWorktrunkSidebar(sender)
-    }
-
-    private func updateWorktrunkTitlebarWidth(_ newValue: CGFloat) {
-        if let window = window as? TitlebarTabsTahoeTerminalWindow {
-            window.updateWorktrunkSidebarWidth(max(0, newValue))
-            return
-        }
-        if let window = window as? TitlebarTabsVenturaTerminalWindow {
-            window.updateWorktrunkSidebarWidth(max(0, newValue))
-            return
-        }
-    }
-
-    private func openWorktree(atPath path: String) {
-        if WorktrunkPreferences.worktreeTabsEnabled {
-            openWorktreeTabSession(worktreePath: path, baseConfig: Ghostty.SurfaceConfiguration())
-            return
-        }
-
-        if focusOpenWorktree(atPath: path) {
-            return
-        }
-
-        let behavior: WorktrunkOpenBehavior = {
-            let raw = UserDefaults.standard.string(forKey: WorktrunkPreferences.openBehaviorKey) ?? ""
-            return WorktrunkOpenBehavior(rawValue: raw) ?? .newTab
-        }()
-
-        var base = Ghostty.SurfaceConfiguration()
-        base.workingDirectory = path
-
-        switch behavior {
-        case .newTab:
-            _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-
-        case .splitRight:
-            if let focusedSurface {
-                if newSplit(at: focusedSurface, direction: .right, baseConfig: base) == nil {
-                    _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-                }
-            } else {
-                _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-            }
-
-        case .splitDown:
-            if let focusedSurface {
-                if newSplit(at: focusedSurface, direction: .down, baseConfig: base) == nil {
-                    _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-                }
-            } else {
-                _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-            }
-        }
-    }
-
-    private func openWorktreeAgentSession(atPath path: String, agent: WorktrunkAgent) {
-        guard agent.isAvailable else { return }
-
-        var base = Ghostty.SurfaceConfiguration()
-        base.workingDirectory = path
-        base.command = agent.command
-        TerminalAgentHooks.apply(to: &base)
-
-        if WorktrunkPreferences.worktreeTabsEnabled {
-            openWorktreeTabSession(worktreePath: path, baseConfig: base)
-            return
-        }
-
-        let behavior: WorktrunkOpenBehavior = {
-            let raw = UserDefaults.standard.string(forKey: WorktrunkPreferences.openBehaviorKey) ?? ""
-            return WorktrunkOpenBehavior(rawValue: raw) ?? .newTab
-        }()
-
-        switch behavior {
-        case .newTab:
-            _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-
-        case .splitRight:
-            if let focusedSurface {
-                if newSplit(at: focusedSurface, direction: .right, baseConfig: base) == nil {
-                    _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-                }
-            } else {
-                _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-            }
-
-        case .splitDown:
-            if let focusedSurface {
-                if newSplit(at: focusedSurface, direction: .down, baseConfig: base) == nil {
-                    _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-                }
-            } else {
-                _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-            }
-        }
-    }
-
-    private func onWorktrunkSelectionChange(_ path: String?) {
-        if #available(macOS 26.0, *) {
-            Task { await gitDiffSidebarState.setSelectedWorktreePath(path) }
-        }
-
-        guard let path else { return }
-
-        if WorktrunkPreferences.worktreeTabsEnabled {
-            // Worktree-tabs mode: use the controller registry for direct lookup
-            if let controller = Self.existingWorktreeTabController(forWorktreePath: path) {
-                controller.window?.makeKeyAndOrderFront(nil)
-                return
-            }
-        }
-
-        // Fallback / non-worktree-tabs mode: scan surfaces by pwd
-        focusOpenWorktree(atPath: path)
-    }
-
-    @objc func toggleGitDiffSidebar(_ sender: Any?) {
-        guard #available(macOS 26.0, *) else { return }
-        let willShow = !gitDiffSidebarState.isVisible
-        Task {
-            let selectedWorktreePath: String? = {
-                switch worktrunkSidebarState.selection {
-                case .worktree(_, let path):
-                    return path
-                case .session(_, _, let worktreePath):
-                    return worktreePath
-                default:
-                    return nil
-                }
-            }()
-
-            if willShow {
-                gitDiffSidebarState.selectedWorktreePath = selectedWorktreePath
-            }
-
-            await gitDiffSidebarState.setVisible(
-                willShow,
-                cwd: selectedWorktreePath ?? focusedSurface?.pwd
-            )
-            if let window = window as? TerminalWindow {
-                window.titlebarFont = lastTitlebarFont
-                window.setDiffSidebarButtonState(willShow)
-            }
-        }
-    }
-
-    @objc func closeGitDiff(_ sender: Any?) {
-        guard #available(macOS 26.0, *) else { return }
-        Task {
-            await gitDiffSidebarState.setVisible(false, cwd: nil)
-            if let window = window as? TerminalWindow {
-                window.setDiffSidebarButtonState(false)
-            }
-        }
-    }
-
-    @objc func openInEditor(_ sender: Any?) {
-        // If the dropdown segment (1) was clicked, show the editor menu
-        if let segmented = sender as? NSSegmentedControl, segmented.selectedSegment == 1 {
-            if let menu = segmented.menu(forSegment: 1) {
-                let screenRect = segmented.window?.convertToScreen(
-                    segmented.convert(segmented.bounds, to: nil)
-                ) ?? .zero
-                let origin = NSPoint(x: screenRect.minX, y: screenRect.minY)
-                menu.popUp(positioning: nil, at: origin, in: nil)
-            }
-            return
-        }
-
-        guard let editor = WorktrunkPreferences.preferredEditor else { return }
-        openIn(editor: editor)
-    }
-
-    @objc func openInSpecificEditor(_ sender: Any?) {
-        guard let menuItem = sender as? NSMenuItem,
-              let editor = menuItem.representedObject as? ExternalEditor else { return }
-        openIn(editor: editor)
-    }
-
-    private func openIn(editor: ExternalEditor) {
-        guard let appURL = editor.appURL else { return }
-        let cwd = currentEditorPath()
-        guard let cwd else { return }
-
-        WorktrunkPreferences.lastEditor = editor
-        refreshEditorToolbarIcon(for: editor)
-
-        let url = URL(fileURLWithPath: cwd)
-        let config = NSWorkspace.OpenConfiguration()
-        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: config)
-    }
-
-    private func refreshEditorToolbarIcon(for editor: ExternalEditor) {
-        guard let toolbar = window?.toolbar else { return }
-        for item in toolbar.items {
-            guard item.itemIdentifier == .openInEditor,
-                  let segmented = item.view as? NSSegmentedControl else { continue }
-            EditorSplitButton.updateIcon(segmented, editor: editor)
-            break
-        }
-    }
-
-    private func currentEditorPath() -> String? {
-        // Prefer selected worktree path from sidebar, fall back to focused surface pwd
-        switch worktrunkSidebarState.selection {
-        case .worktree(_, let path):
-            return path
-        case .session(_, _, let worktreePath):
-            return worktreePath
-        default:
-            return focusedSurface?.pwd
-        }
-    }
-
-    private func resumeAISession(_ session: AISession) {
-        var base = Ghostty.SurfaceConfiguration()
-        base.workingDirectory = session.cwd
-
-        switch session.source {
-        case .claude:
-            // Claude needs to run from the cwd (set via workingDirectory)
-            base.command = "claude --resume \(session.id)"
-        case .codex:
-            // Codex handles cwd internally
-            base.command = "codex resume \(session.id)"
-        case .opencode:
-            base.command = "opencode --session \(session.id)"
-        case .copilotCli:
-            base.command = "copilot --resume \(session.id)"
-        }
-
-        if WorktrunkPreferences.worktreeTabsEnabled {
-            openWorktreeTabSession(worktreePath: session.worktreePath, baseConfig: base)
-            return
-        }
-
-        _ = TerminalController.newTab(ghostty, from: window, withBaseConfig: base)
-    }
-
-    private func focusOpenWorktree(atPath path: String) -> Bool {
-        let target = URL(fileURLWithPath: path).standardizedFileURL.path
-        let targetPrefix = target.hasSuffix("/") ? target : (target + "/")
-
-        for window in NSApp.windows {
-            guard let controller = window.windowController as? TerminalController else { continue }
-
-            for surfaceView in controller.surfaceTree {
-                guard let pwd = surfaceView.pwd else { continue }
-                let pwdPath = URL(fileURLWithPath: pwd).standardizedFileURL.path
-                if pwdPath == target || pwdPath.hasPrefix(targetPrefix) {
-                    controller.focusSurface(surfaceView)
-                    return true
-                }
-            }
-        }
-
-        return false
+        super.showWindow(sender)
     }
 
     // Shows the "+" button in the tab bar, responds to that click.
@@ -2040,6 +1173,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
     override func windowWillClose(_ notification: Notification) {
         super.windowWillClose(notification)
+        cancelPendingInitialPresentation()
         self.relabelTabs()
 
         // If we remove a window, we reset the cascade point to the key window so that
@@ -2076,13 +1210,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         super.windowDidBecomeKey(notification)
         self.relabelTabs()
         self.fixTabBar()
-        requestTabSwitchRefresh()
-        terminalGlassContainer?.updateGlassTintOverlay(isKeyWindow: true)
+        terminalViewContainer?.updateGlassTintOverlay(isKeyWindow: true)
     }
 
     override func windowDidResignKey(_ notification: Notification) {
         super.windowDidResignKey(notification)
-        terminalGlassContainer?.updateGlassTintOverlay(isKeyWindow: false)
+        terminalViewContainer?.updateGlassTintOverlay(isKeyWindow: false)
     }
 
     override func windowDidMove(_ notification: Notification) {
@@ -2090,27 +1223,21 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         self.fixTabBar()
 
         // Whenever we move save our last position for the next start.
-        if let window {
-            LastWindowPosition.shared.save(window)
-        }
+        LastWindowPosition.shared.save(window)
     }
 
     override func windowDidResize(_ notification: Notification) {
         super.windowDidResize(notification)
 
         // Whenever we resize save our last position and size for the next start.
-        if let window {
-            LastWindowPosition.shared.save(window)
-        }
+        LastWindowPosition.shared.save(window)
     }
 
     func windowDidBecomeMain(_ notification: Notification) {
         // Whenever we get focused, use that as our last window position for
         // restart. This differs from Terminal.app but matches iTerm2 behavior
         // and I think its sensible.
-        if let window {
-            LastWindowPosition.shared.save(window)
-        }
+        LastWindowPosition.shared.save(window)
 
         // Remember our last main
         Self.lastMain = self
@@ -2119,10 +1246,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     // Called when the window will be encoded. We handle the data encoding here in the
     // window controller.
     func window(_ window: NSWindow, willEncodeRestorableState state: NSCoder) {
-        if RestorablePath.existingDirectoryURL(window.representedURL) == nil {
-            window.representedURL = nil
-        }
-
         let data = TerminalRestorableState(from: self)
         data.encode(with: state)
     }
@@ -2136,16 +1259,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
 
     @IBAction func newTab(_ sender: Any?) {
         guard let surface = focusedSurface?.surface else { return }
-        if WorktrunkPreferences.sidebarTabsEnabled {
-            // Sidebar tabs mode owns tab creation. Do not allow native titlebar tabs.
-            if WorktrunkPreferences.worktreeTabsEnabled, worktreeTabRootPath != nil {
-                openWorktreeTabNewSession(baseConfig: Ghostty.SurfaceConfiguration())
-            } else {
-                ghostty.newWindow(surface: surface)
-            }
-            return
-        }
-
         ghostty.newTab(surface: surface)
     }
 
@@ -2283,8 +1396,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         guard let focusedSurface else { return }
         syncAppearance(focusedSurface.derivedConfig)
 
-        requestTabSwitchRefresh()
-
         // We also want to get notified of certain changes to update our appearance.
         focusedSurface.$derivedConfig
             .sink { [weak self, weak focusedSurface] _ in self?.syncAppearanceOnPropertyChange(focusedSurface) }
@@ -2292,17 +1403,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         focusedSurface.$backgroundColor
             .sink { [weak self, weak focusedSurface] _ in self?.syncAppearanceOnPropertyChange(focusedSurface) }
             .store(in: &surfaceAppearanceCancellables)
-
-    }
-
-    override func pwdDidChange(to: URL?) {
-        super.pwdDidChange(to: to)
-        if #available(macOS 26.0, *) {
-            guard let to else { return }
-            Task { @MainActor in
-                gitDiffSidebarState.requestRefresh(cwd: to, force: false)
-            }
-        }
     }
 
     private func syncAppearanceOnPropertyChange(_ surface: Ghostty.SurfaceView?) {
@@ -2312,55 +1412,6 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             guard let self else { return }
             guard self.focusedSurface == surface else { return }
             self.syncAppearance(surface.derivedConfig)
-        }
-    }
-
-    private func requestTabSwitchRefresh() {
-        let now = Date()
-        let currentSurfaceID = focusedSurface?.id
-        if let lastTabSwitchRefreshAt,
-           now.timeIntervalSince(lastTabSwitchRefreshAt) < tabSwitchRefreshThrottle {
-            if currentSurfaceID == lastTabSwitchSurfaceID {
-                return
-            }
-            scheduleTabSwitchRefresh()
-            return
-        }
-
-        lastTabSwitchRefreshAt = now
-        pendingTabSwitchRefresh?.cancel()
-        pendingTabSwitchRefresh = nil
-        performTabSwitchRefresh()
-    }
-
-    private func scheduleTabSwitchRefresh() {
-        pendingTabSwitchRefresh?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.lastTabSwitchRefreshAt = Date()
-            self.performTabSwitchRefresh()
-        }
-        pendingTabSwitchRefresh = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + tabSwitchRefreshThrottle, execute: item)
-    }
-
-    private func performTabSwitchRefresh() {
-        lastTabSwitchSurfaceID = focusedSurface?.id
-        syncSidebarSelectionToActiveTab()
-        syncWorktrunkSidebarStateToTabGroup()
-        if let appDelegate = NSApp.delegate as? AppDelegate,
-           let pwd = focusedSurface?.pwd {
-            appDelegate.worktrunkStore.clearAgentReviewIfViewing(cwd: pwd)
-        }
-
-        if #available(macOS 26.0, *) {
-            // Git diff should be ready for the active tab without requiring any Worktrunk interaction.
-            if gitDiffSidebarState.isVisible,
-               let pwd = focusedSurface?.pwd {
-                Task { @MainActor in
-                    gitDiffSidebarState.requestRefresh(cwd: URL(fileURLWithPath: pwd), force: false)
-                }
-            }
         }
     }
 
@@ -2531,7 +1582,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     struct DerivedConfig {
         let backgroundColor: Color
         let macosWindowButtons: Ghostty.MacOSWindowButtons
-        let macosTitlebarStyle: String
+        let macosTitlebarStyle: Ghostty.Config.MacOSTitlebarStyle
         let maximize: Bool
         let windowPositionX: Int16?
         let windowPositionY: Int16?
@@ -2539,7 +1590,7 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         init() {
             self.backgroundColor = Color(NSColor.windowBackgroundColor)
             self.macosWindowButtons = .visible
-            self.macosTitlebarStyle = "system"
+            self.macosTitlebarStyle = .default
             self.maximize = false
             self.windowPositionX = nil
             self.windowPositionY = nil
@@ -2638,17 +1689,8 @@ extension TerminalController {
             // Initial size as requested by the configuration (e.g. `window-width`)
             // takes next priority.
             return .contentIntrinsicSize
-        } else if let initialFrame {
-            // The initial frame we had when we started otherwise.
-            return .frame(initialFrame)
         } else {
             return nil
         }
-    }
-}
-
-extension TerminalController {
-    func openWorktreeFromPalette(atPath path: String) {
-        openWorktree(atPath: path)
     }
 }

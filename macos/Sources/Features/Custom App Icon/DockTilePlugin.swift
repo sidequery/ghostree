@@ -7,17 +7,13 @@ class DockTilePlugin: NSObject, NSDockTilePlugIn {
 
     private let pluginBundle = Bundle(for: DockTilePlugin.self)
 
-    // Read icon state from the host app's defaults domain so fork bundle IDs
-    // (and debug/release IDs) stay in sync automatically.
-    private var ghosttyUserDefaults: UserDefaults? {
-        guard
-            let appBundleURL = ghosttyAppURL,
-            let appBundle = Bundle(path: appBundleURL.path),
-            let bundleIdentifier = appBundle.bundleIdentifier
-        else { return nil }
-
-        return UserDefaults(suiteName: bundleIdentifier)
-    }
+    // Separate defaults based on debug vs release builds so we can test icons
+    // without messing up releases.
+    #if DEBUG
+    private let ghosttyUserDefaults = UserDefaults(suiteName: "com.mitchellh.ghostty.debug")
+    #else
+    private let ghosttyUserDefaults = UserDefaults(suiteName: "com.mitchellh.ghostty")
+    #endif
 
     private var iconChangeObserver: Any?
 
@@ -86,7 +82,7 @@ class DockTilePlugin: NSObject, NSDockTilePlugIn {
     /// Reset the application icon and dock tile icon to the default.
     private func resetIcon(dockTile: NSDockTile) {
         let appBundlePath = self.ghosttyAppURL?.path
-        let appIcon: NSImage
+        let appIcon: NSImage?
         if #available(macOS 26.0, *) {
             // Reset to the default (glassy) icon.
             if let appBundlePath {
@@ -97,21 +93,8 @@ class DockTilePlugin: NSObject, NSDockTilePlugIn {
             // Use the `Blueprint` icon to distinguish Debug from Release builds.
             appIcon = pluginBundle.image(forResource: "BlueprintImage")!
             #else
-            // Get the composed icon from the app bundle.
-            if let appBundlePath,
-                let iconRep = NSWorkspace.shared.icon(forFile: appBundlePath)
-                .bestRepresentation(
-                    for: CGRect(origin: .zero, size: dockTile.size),
-                    context: nil,
-                    hints: nil
-            ) {
-                appIcon = NSImage(size: dockTile.size)
-                appIcon.addRepresentation(iconRep)
-            } else {
-                // If something unexpected happens on macOS 26,
-                // fall back to a bundled icon.
-                appIcon = pluginBundle.image(forResource: "AppIconImage")!
-            }
+            // Reset to Ghostty.icon
+            appIcon = nil
             #endif
         } else {
             // Use the bundled icon to keep the corner radius consistent with pre-Tahoe apps.
@@ -130,9 +113,14 @@ class DockTilePlugin: NSObject, NSDockTilePlugIn {
 }
 
 private extension NSDockTile {
-    func setIcon(_ newIcon: NSImage) {
+    func setIcon(_ newIcon: NSImage?) {
         // Update the Dock tile on the main thread.
         DispatchQueue.main.async {
+            guard let newIcon else {
+                self.contentView = nil
+                self.display()
+                return
+            }
             let iconView = NSImageView(frame: CGRect(origin: .zero, size: self.size))
             iconView.wantsLayer = true
             iconView.image = newIcon

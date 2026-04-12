@@ -243,6 +243,7 @@
 				Ghostty/Ghostty.Error.swift,
 				Ghostty/Ghostty.Event.swift,
 				Ghostty/Ghostty.Input.swift,
+				Ghostty/Ghostty.MenuShortcutManager.swift,
 				Ghostty/Ghostty.Surface.swift,
 				"Ghostty/NSEvent+Extension.swift",
 				"Ghostty/Surface View/InspectorView.swift",

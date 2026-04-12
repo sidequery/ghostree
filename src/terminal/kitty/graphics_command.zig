@@ -3,6 +3,7 @@ const assert = @import("../../quirks.zig").inlineAssert;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 const simd = @import("../../simd/main.zig");
+const lib = @import("../lib.zig");
 
 const log = std.log.scoped(.kitty_gfx);
 
@@ -394,39 +395,38 @@ pub const Transmission = struct {
     compression: Compression = .none, // o
     more_chunks: bool = false, // m
 
-    pub const Format = enum {
-        rgb, // 24
-        rgba, // 32
-        png, // 100
-
+    pub const Format = lib.Enum(lib.target, &.{
+        "rgb", // 24
+        "rgba", // 32
+        "png", // 100
         // The following are not supported directly via the protocol
         // but they are formats that a png may decode to that we
         // support.
-        gray_alpha,
-        gray,
+        "gray_alpha",
+        "gray",
+    });
 
-        pub fn bpp(self: Format) u8 {
-            return switch (self) {
-                .gray => 1,
-                .gray_alpha => 2,
-                .rgb => 3,
-                .rgba => 4,
-                .png => unreachable, // Must be validated before
-            };
-        }
-    };
+    pub const Medium = lib.Enum(lib.target, &.{
+        "direct", // d
+        "file", // f
+        "temporary_file", // t
+        "shared_memory", // s
+    });
 
-    pub const Medium = enum {
-        direct, // d
-        file, // f
-        temporary_file, // t
-        shared_memory, // s
-    };
+    pub const Compression = lib.Enum(lib.target, &.{
+        "none",
+        "zlib_deflate", // z
+    });
 
-    pub const Compression = enum {
-        none,
-        zlib_deflate, // z
-    };
+    pub fn formatBpp(format: Format) u8 {
+        return switch (format) {
+            .gray => 1,
+            .gray_alpha => 2,
+            .rgb => 3,
+            .rgba => 4,
+            .png => unreachable, // Must be validated before
+        };
+    }
 
     fn parse(kv: KV) !Transmission {
         var result: Transmission = .{};

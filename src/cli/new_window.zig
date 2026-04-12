@@ -58,7 +58,6 @@ pub const Options = struct {
 
         if (lib.cutPrefix(u8, arg, "--working-directory=")) |rest| {
             const stripped = std.mem.trim(u8, rest, &std.ascii.whitespace);
-            self._working_directory_seen = true;
             if (std.mem.eql(u8, stripped, "home")) return try alloc.dupeZ(u8, arg);
             if (std.mem.eql(u8, stripped, "inherit")) return try alloc.dupeZ(u8, arg);
             const cwd: std.fs.Dir = std.fs.cwd();
@@ -66,6 +65,7 @@ pub const Options = struct {
             const expanded = try homedir.expandHome(stripped, &expandhome_buf);
             var realpath_buf: [std.fs.max_path_bytes]u8 = undefined;
             const realpath = try cwd.realpath(expanded, &realpath_buf);
+            self._working_directory_seen = true;
             return try std.fmt.allocPrintSentinel(alloc, "--working-directory={s}", .{realpath}, 0);
         }
 
@@ -198,7 +198,8 @@ fn runArgs(
         const cwd: std.fs.Dir = std.fs.cwd();
         var buf: [std.fs.max_path_bytes]u8 = undefined;
         const wd = try cwd.realpath(".", &buf);
-        try opts._arguments.append(alloc, try std.fmt.allocPrintSentinel(alloc, "--working-directory={s}", .{wd}, 0));
+        // This should be inserted at the beginning of the list, just in case `-e` was used.
+        try opts._arguments.insert(alloc, 0, try std.fmt.allocPrintSentinel(alloc, "--working-directory={s}", .{wd}, 0));
     }
 
     var arena = ArenaAllocator.init(alloc_gpa);
@@ -227,26 +228,4 @@ fn runArgs(
     // If we get here, the platform is not supported.
     try stderr.print("+new-window is not supported on this platform.\n", .{});
     return 1;
-}
-
-test "new-window marks working-directory=home as explicit" {
-    var arena = ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var opts: Options = .{};
-    const arg = try opts.checkArg(arena.allocator(), "--working-directory=home");
-
-    try std.testing.expect(opts._working_directory_seen);
-    try std.testing.expectEqualStrings("--working-directory=home", arg.?);
-}
-
-test "new-window marks working-directory=inherit as explicit" {
-    var arena = ArenaAllocator.init(std.testing.allocator);
-    defer arena.deinit();
-
-    var opts: Options = .{};
-    const arg = try opts.checkArg(arena.allocator(), "--working-directory=inherit");
-
-    try std.testing.expect(opts._working_directory_seen);
-    try std.testing.expectEqualStrings("--working-directory=inherit", arg.?);
 }

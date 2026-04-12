@@ -72,7 +72,6 @@ struct CommandPaletteView: View {
     var options: [CommandOption]
     @State private var selectedIndex: UInt?
     @State private var hoveredOptionID: UUID?
-    @FocusState private var isTextFieldFocused: Bool
 
     // The options that we should show, taking into account any filtering from
     // the query. Options with matching leadingColor are ranked higher.
@@ -118,7 +117,7 @@ struct CommandPaletteView: View {
         }
 
         VStack(alignment: .leading, spacing: 0) {
-            CommandPaletteQuery(query: $query, isTextFieldFocused: _isTextFieldFocused) { event in
+            CommandPaletteQuery(query: $query) { event in
                 switch event {
                 case .exit:
                     isPresented = false
@@ -199,26 +198,12 @@ struct CommandPaletteView: View {
         .padding()
         .environment(\.colorScheme, scheme)
         .onChange(of: isPresented) { newValue in
-            // Reset focus when quickly showing and hiding.
-            // macOS will destroy this view after a while,
-            // so task/onAppear will not be called again.
-            // If you toggle it rather quickly, we reset
-            // it here when dismissing.
-            isTextFieldFocused = newValue
-            if !isPresented {
+            if !newValue {
                 // This is optional, since most of the time
                 // there will be a delay before the next use.
                 // To keep behavior the same as before, we reset it.
                 query = ""
             }
-        }
-        .task {
-            // Grab focus on the first appearance.
-            // This happens right after onAppear,
-            // so we don’t need to dispatch it again.
-            // Fixes: https://github.com/ghostty-org/ghostty/issues/8497
-            // Also fixes initial focus while animating.
-            isTextFieldFocused = isPresented
         }
     }
 
@@ -255,10 +240,9 @@ private struct CommandPaletteQuery: View {
     var onEvent: ((KeyboardEvent) -> Void)?
     @FocusState private var isTextFieldFocused: Bool
 
-    init(query: Binding<String>, isTextFieldFocused: FocusState<Bool>, onEvent: ((KeyboardEvent) -> Void)? = nil) {
+    init(query: Binding<String>, onEvent: ((KeyboardEvent) -> Void)? = nil) {
         _query = query
         self.onEvent = onEvent
-        _isTextFieldFocused = isTextFieldFocused
     }
 
     enum KeyboardEvent {
@@ -301,6 +285,17 @@ private struct CommandPaletteQuery: View {
                 .onExitCommand { onEvent?(.exit) }
                 .onMoveCommand { onEvent?(.move($0)) }
                 .onSubmit { onEvent?(.submit) }
+                .onAppear {
+                    // Grab focus on the first appearance.
+                    // Debug and Release build using Xcode 26.4,
+                    // has same issue again
+                    // Fixes: https://github.com/ghostty-org/ghostty/issues/8497
+                    // SearchOverlay works magically as expected, I don't know
+                    // why it's different here, but dispatching to next loop fixes it
+                    DispatchQueue.main.async {
+                        isTextFieldFocused = true
+                    }
+                }
         }
     }
 }

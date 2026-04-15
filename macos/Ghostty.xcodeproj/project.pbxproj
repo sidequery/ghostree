@@ -807,7 +807,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.3.22;
+				MARKETING_VERSION = 0.3.23;
 				"OTHER_LDFLAGS[arch=*]" = "-lstdc++";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.sidequery.Ghostree;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1205,7 +1205,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.3.22;
+				MARKETING_VERSION = 0.3.23;
 				"OTHER_LDFLAGS[arch=*]" = "-lstdc++";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.sidequery.Ghostree.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1261,7 +1261,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.3.22;
+				MARKETING_VERSION = 0.3.23;
 				"OTHER_LDFLAGS[arch=*]" = "-lstdc++";
 				PRODUCT_BUNDLE_IDENTIFIER = dev.sidequery.Ghostree;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1299,7 +1299,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.3.22;
+				MARKETING_VERSION = 0.3.23;
 				"OTHER_LDFLAGS[arch=*]" = "-lstdc++";
 				PRODUCT_BUNDLE_IDENTIFIER = "dev.sidequery.Ghostree-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1339,7 +1339,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.3.22;
+				MARKETING_VERSION = 0.3.23;
 				"OTHER_LDFLAGS[arch=*]" = "-lstdc++";
 				PRODUCT_BUNDLE_IDENTIFIER = "dev.sidequery.Ghostree-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1379,7 +1379,7 @@
 					"@executable_path/Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 0.3.22;
+				MARKETING_VERSION = 0.3.23;
 				"OTHER_LDFLAGS[arch=*]" = "-lstdc++";
 				PRODUCT_BUNDLE_IDENTIFIER = "dev.sidequery.Ghostree-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";

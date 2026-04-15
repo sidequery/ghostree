@@ -307,9 +307,8 @@ class BaseTerminalController: NSWindowController,
             // Our focus state requires that this window is key and our currently
             // focused surface is the surface in this view.
             let focused: Bool = (window?.isKeyWindow ?? false) &&
-                !commandPaletteIsShowing &&
-                focusedSurface != nil &&
-                surfaceView == focusedSurface!
+                surfaceView == focusedSurface &&
+                surfaceView.isFirstResponder
             surfaceView.focusDidChange(focused)
         }
     }

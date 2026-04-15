@@ -12,7 +12,7 @@ pub fn build(b: *std.Build) !void {
         }),
         .linkage = .static,
     });
-    lib.linkLibCpp();
+    lib.linkLibC();
 
     if (target.result.os.tag.isDarwin()) {
         const apple_sdk = @import("apple_sdk");

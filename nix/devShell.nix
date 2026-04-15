@@ -8,6 +8,7 @@
   appstream,
   flatpak-builder,
   gdb,
+  cmake,
   #, glxinfo # unused
   ncurses,
   nodejs,
@@ -100,6 +101,7 @@ in
     packages =
       [
         # For builds
+        cmake
         doxygen
         jq
         llvmPackages_latest.llvm

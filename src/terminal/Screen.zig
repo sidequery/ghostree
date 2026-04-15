@@ -255,7 +255,16 @@ pub const Options = struct {
 
     /// The total storage limit for Kitty images in bytes for this
     /// screen. Kitty image storage is per-screen.
-    kitty_image_storage_limit: usize = 320 * 1000 * 1000, // 320MB
+    kitty_image_storage_limit: usize = switch (build_options.artifact) {
+        .ghostty => 320 * 1000 * 1000, // 320MB
+        .lib => 10 * 1000 * 1000, // 10MB
+    },
+
+    /// The limits for what medium types are allowed for Kitty image loading.
+    kitty_image_loading_limits: if (build_options.kitty_graphics)
+        kitty.graphics.LoadingImage.Limits
+    else
+        void = if (build_options.kitty_graphics) .direct else {},
 
     /// A simple, default terminal. If you rely on specific dimensions or
     /// scrollback (or lack of) then do not use this directly. This is just
@@ -313,6 +322,7 @@ pub fn init(
             &result,
             opts.kitty_image_storage_limit,
         ) catch unreachable;
+        result.kitty_images.image_limits = opts.kitty_image_loading_limits;
     }
 
     return result;
@@ -1302,19 +1312,21 @@ pub inline fn viewportIsBottom(self: Screen) bool {
 /// Erase the region specified by tl and br, inclusive. This will physically
 /// erase the rows meaning the memory will be reclaimed (if the underlying
 /// page is empty) and other rows will be shifted up.
-pub inline fn eraseRows(
+pub inline fn eraseHistory(
     self: *Screen,
-    tl: point.Point,
     bl: ?point.Point,
 ) void {
     defer self.assertIntegrity();
+    self.pages.eraseHistory(bl);
+    self.cursorReload();
+}
 
-    // Erase the rows
-    self.pages.eraseRows(tl, bl);
-
-    // Just to be safe, reset our cursor since it is possible depending
-    // on the points that our active area shifted so our pointers are
-    // invalid.
+pub inline fn eraseActive(
+    self: *Screen,
+    y: size.CellCountInt,
+) void {
+    defer self.assertIntegrity();
+    self.pages.eraseActive(y);
     self.cursorReload();
 }
 
@@ -1761,7 +1773,7 @@ pub inline fn resize(
     // erase our history. This is because PageList always keeps at least
     // a page size of history.
     if (self.no_scrollback) {
-        self.pages.eraseRows(.{ .history = .{} }, null);
+        self.pages.eraseHistory(null);
     }
 
     // If our cursor was updated, we do a full reload so all our cursor
@@ -3880,7 +3892,7 @@ test "Screen eraseRows history" {
         try testing.expectEqualStrings("1\n2\n3\n4\n5\n6", str);
     }
 
-    s.eraseRows(.{ .history = .{} }, null);
+    s.eraseHistory(null);
 
     {
         const str = try s.dumpStringAlloc(alloc, .{ .active = .{} });
@@ -3914,7 +3926,7 @@ test "Screen eraseRows history with more lines" {
         try testing.expectEqualStrings("A\nB\nC\n1\n2\n3\n4\n5\n6", str);
     }
 
-    s.eraseRows(.{ .history = .{} }, null);
+    s.eraseHistory(null);
 
     {
         const str = try s.dumpStringAlloc(alloc, .{ .active = .{} });
@@ -3943,7 +3955,7 @@ test "Screen eraseRows active partial" {
         try testing.expectEqualStrings("1\n2\n3", str);
     }
 
-    s.eraseRows(.{ .active = .{} }, .{ .active = .{ .y = 1 } });
+    s.eraseActive(1);
 
     {
         const str = try s.dumpStringAlloc(alloc, .{ .active = .{} });
@@ -5655,7 +5667,7 @@ test "Screen: clear history with no history" {
     defer s.deinit();
     try s.testWriteString("4ABCD\n5EFGH\n6IJKL");
     try testing.expect(s.pages.viewport == .active);
-    s.eraseRows(.{ .history = .{} }, null);
+    s.eraseHistory(null);
     try testing.expect(s.pages.viewport == .active);
     {
         // Test our contents rotated
@@ -5689,7 +5701,7 @@ test "Screen: clear history" {
         try testing.expectEqualStrings("1ABCD\n2EFGH\n3IJKL", contents);
     }
 
-    s.eraseRows(.{ .history = .{} }, null);
+    s.eraseHistory(null);
     try testing.expect(s.pages.viewport == .active);
     {
         // Test our contents rotated

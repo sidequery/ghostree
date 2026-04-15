@@ -119,6 +119,10 @@ extension Ghostty {
         // Whether the mouse is currently over this surface
         @Published private(set) var mouseOverSurface: Bool = false
 
+        // The last known mouse location in the surface's local coordinate space,
+        // used by overlays such as the split drag handle reveal region.
+        @Published private(set) var mouseLocationInSurface: CGPoint?
+
         // Whether the cursor is currently visible (not hidden by typing, etc.)
         @Published private(set) var cursorVisible: Bool = true
 
@@ -438,6 +442,15 @@ extension Ghostty {
             guard let surface = self.surface else { return }
             guard self.focused != focused else { return }
             self.focused = focused
+
+            // If we lost our focus then remove the mouse event suppression so
+            // our mouse release event leaving the surface can properly be
+            // sent to stop things like mouse selection.
+            if !focused {
+                suppressNextLeftMouseUp = false
+            }
+
+            // Notify libghostty
             ghostty_surface_set_focus(surface, focused)
 
             // Update our secure input state if we are a password input
@@ -639,6 +652,14 @@ extension Ghostty {
         }
 
         private func localEventLeftMouseDown(_ event: NSEvent) -> NSEvent? {
+            let isCommandPaletteVisible = (event.window?.windowController as? BaseTerminalController)?
+                .commandPaletteIsShowing == true
+            guard !isCommandPaletteVisible else {
+                // We don't want to process events that
+                // are supposed to be handled by CommandPaletteView
+                return event
+            }
+
             // We only want to process events that are on this window.
             guard let window,
                   event.window != nil,
@@ -646,11 +667,19 @@ extension Ghostty {
 
             // The clicked location in this window should be this view.
             let location = convert(event.locationInWindow, from: nil)
-            guard hitTest(location) == self else { return event }
+            // We should use window to perform hitTest here,
+            // because there could be some other overlays on top, like search bar
+            guard window.contentView?.hitTest(location) == self else { return event }
+
+            // We always assume that we're resetting our mouse suppression
+            // unless we see the specific scenario below to set it.
+            suppressNextLeftMouseUp = false
 
             // If we're already the first responder then no focus transfer is
             // happening, so the click should continue as normal.
-            guard window.firstResponder !== self else { return event }
+            guard window.firstResponder !== self else {
+                return event
+            }
 
             // If our window/app is already focused, then this click is only
             // being used to transfer split focus. Consume it so it does not
@@ -937,13 +966,15 @@ extension Ghostty {
             mouseOverSurface = true
             super.mouseEntered(with: event)
 
+            let pos = self.convert(event.locationInWindow, from: nil)
+            mouseLocationInSurface = pos
+
             guard let surfaceModel else { return }
 
             // On mouse enter we need to reset our cursor position. This is
             // super important because we set it to -1/-1 on mouseExit and
             // lots of mouse logic (i.e. whether to send mouse reports) depend
             // on the position being in the viewport if it is.
-            let pos = self.convert(event.locationInWindow, from: nil)
             let mouseEvent = Ghostty.Input.MousePosEvent(
                 x: pos.x,
                 y: frame.height - pos.y,
@@ -954,6 +985,7 @@ extension Ghostty {
 
         override func mouseExited(with event: NSEvent) {
             mouseOverSurface = false
+            mouseLocationInSurface = nil
             guard let surfaceModel else { return }
 
             // If the mouse is being dragged then we don't have to emit
@@ -973,10 +1005,12 @@ extension Ghostty {
         }
 
         override func mouseMoved(with event: NSEvent) {
+            let pos = self.convert(event.locationInWindow, from: nil)
+            mouseLocationInSurface = pos
+
             guard let surfaceModel else { return }
 
             // Convert window position to view position. Note (0, 0) is bottom left.
-            let pos = self.convert(event.locationInWindow, from: nil)
             let mouseEvent = Ghostty.Input.MousePosEvent(
                 x: pos.x,
                 y: frame.height - pos.y,
@@ -1046,7 +1080,7 @@ extension Ghostty {
 
             // If the user has force click enabled then we do a quick look. There
             // is no public API for this as far as I can tell.
-            guard UserDefaults.standard.bool(forKey: "com.apple.trackpad.forceClick") else { return }
+            guard UserDefaults.ghostty.bool(forKey: "com.apple.trackpad.forceClick") else { return }
             quickLook(with: event)
         }
 
@@ -1241,7 +1275,8 @@ extension Ghostty {
                    keyTables.isEmpty,
                    bindingFlags.isDisjoint(with: [.all, .performable]),
                    bindingFlags.contains(.consumed) {
-                    if let menu = NSApp.mainMenu, menu.performKeyEquivalent(with: event) {
+                    if let appDelegate = NSApp.delegate as? AppDelegate,
+                       appDelegate.performGhosttyBindingMenuKeyEquivalent(with: event) {
                         return true
                     }
                 }
@@ -1569,19 +1604,11 @@ extension Ghostty {
         }
 
         @IBAction func findNext(_ sender: Any?) {
-            guard let surface = self.surface else { return }
-            let action = "search:next"
-            if !ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8))) {
-                AppDelegate.logger.warning("action failed action=\(action)")
-            }
+            _ = self.navigateSearchToNext()
         }
 
         @IBAction func findPrevious(_ sender: Any?) {
-            guard let surface = self.surface else { return }
-            let action = "search:previous"
-            if !ghostty_surface_binding_action(surface, action, UInt(action.lengthOfBytes(using: .utf8))) {
-                AppDelegate.logger.warning("action failed action=\(action)")
-            }
+            _ = navigateSearchToPrevious()
         }
 
         @IBAction func findHide(_ sender: Any?) {
@@ -1710,7 +1737,6 @@ extension Ghostty {
             let backgroundBlur: Ghostty.Config.BackgroundBlur
             let macosWindowShadow: Bool
             let windowTitleFontFamily: String?
-            let windowTheme: String
             let windowAppearance: NSAppearance?
             let scrollbar: Ghostty.Config.Scrollbar
 
@@ -1720,7 +1746,6 @@ extension Ghostty {
                 self.backgroundBlur = .disabled
                 self.macosWindowShadow = true
                 self.windowTitleFontFamily = nil
-                self.windowTheme = "auto"
                 self.windowAppearance = nil
                 self.scrollbar = .system
             }
@@ -1731,7 +1756,6 @@ extension Ghostty {
                 self.backgroundBlur = config.backgroundBlur
                 self.macosWindowShadow = config.macosWindowShadow
                 self.windowTitleFontFamily = config.windowTitleFontFamily
-                self.windowTheme = config.windowTheme ?? "auto"
                 self.windowAppearance = .init(ghosttyConfig: config)
                 self.scrollbar = config.scrollbar
             }
@@ -1757,8 +1781,7 @@ extension Ghostty {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let uuid = UUID(uuidString: try container.decode(String.self, forKey: .uuid))
             var config = Ghostty.SurfaceConfiguration()
-            let decodedPwd = try container.decode(String?.self, forKey: .pwd)
-            config.workingDirectory = RestorablePath.normalizedExistingDirectoryPath(decodedPwd)
+            config.workingDirectory = try container.decode(String?.self, forKey: .pwd)
             let savedTitle = try container.decodeIfPresent(String.self, forKey: .title)
             let isUserSetTitle = try container.decodeIfPresent(Bool.self, forKey: .isUserSetTitle) ?? false
 
@@ -1776,8 +1799,7 @@ extension Ghostty {
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
-            let persistedPwd = RestorablePath.normalizedExistingDirectoryPath(pwd)
-            try container.encode(persistedPwd, forKey: .pwd)
+            try container.encode(pwd, forKey: .pwd)
             try container.encode(id.uuidString, forKey: .uuid)
             try container.encode(title, forKey: .title)
             try container.encode(titleFromTerminal != nil, forKey: .isUserSetTitle)

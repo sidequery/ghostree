@@ -1,12 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Default width for the worktrunk sidebar.
-private let defaultSidebarWidth: CGFloat = 280
-
-/// Padding to accommodate window control buttons (close/minimize/zoom).
-private let windowControlButtonsWidth: CGFloat = 70
-
 /// `macos-titlebar-style = tabs` for macOS 26 (Tahoe) and later.
 ///
 /// This inherits from transparent styling so that the titlebar matches the background color
@@ -15,9 +9,6 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
     /// The view model for SwiftUI views
     private var viewModel = ViewModel()
 
-    private var worktrunkSidebarWidth: CGFloat = defaultSidebarWidth
-    private var tabBarLeftConstraint: NSLayoutConstraint?
-    private var displayTitle: String = "👻 Ghostree"
     /// Titlebar tabs can't support the update accessory because of the way we layout
     /// the native tabs back into the menu bar.
     override var supportsUpdateAccessory: Bool { false }
@@ -32,7 +23,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         didSet {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.viewModel.titleFont = self.titlebarFont ?? .titleBarFont(ofSize: NSFont.systemFontSize)
+                self.viewModel.titleFont = self.titlebarFont
             }
         }
     }
@@ -41,8 +32,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         didSet {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.displayTitle = self.title
-                self.viewModel.title = self.displayTitle
+                self.viewModel.title = self.title
             }
         }
     }
@@ -57,6 +47,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         // Create a toolbar
         let toolbar = NSToolbar(identifier: "TerminalToolbar")
         toolbar.delegate = self
+        toolbar.centeredItemIdentifiers.insert(.title)
         self.toolbar = toolbar
         toolbarStyle = .unifiedCompact
     }
@@ -76,42 +67,6 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
 
         viewModel.isMainWindow = false
     }
-
-    /// On our Tahoe titlebar tabs, we need to fix up right click events because they don't work
-    /// naturally due to whatever mess we made.
-    override func sendEvent(_ event: NSEvent) {
-        guard viewModel.hasTabBar else {
-            super.sendEvent(event)
-            return
-        }
-
-        let isRightClick =
-            event.type == .rightMouseDown ||
-            (event.type == .otherMouseDown && event.buttonNumber == 2) ||
-            (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
-        guard isRightClick else {
-            super.sendEvent(event)
-            return
-        }
-
-        guard let tabBarView else {
-            super.sendEvent(event)
-            return
-        }
-
-        guard !tabTitleEditor.handleRightMouseDown(event) else {
-            return
-        }
-
-        let locationInTabBar = tabBarView.convert(event.locationInWindow, from: nil)
-        guard tabBarView.bounds.contains(locationInTabBar) else {
-            super.sendEvent(event)
-            return
-        }
-
-        tabBarView.rightMouseDown(with: event)
-    }
-
     // This is called by macOS for native tabbing in order to add the tab bar. We hook into
     // this, detect the tab bar being added, and override its behavior.
     override func addTitlebarAccessoryViewController(_ childViewController: NSTitlebarAccessoryViewController) {
@@ -120,6 +75,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             // After dragging a tab into a new window, `hasTabBar` needs to be
             // updated to properly review window title
             viewModel.hasTabBar = false
+
             super.addTitlebarAccessoryViewController(childViewController)
             return
         }
@@ -211,11 +167,10 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
 
         // The padding for the tab bar. If we're showing window buttons then
         // we need to offset the window buttons.
-        let windowButtonsPadding: CGFloat = switch self.derivedConfig.macosWindowButtons {
+        let leftPadding: CGFloat = switch self.derivedConfig.macosWindowButtons {
         case .hidden: 0
-        case .visible: windowControlButtonsWidth
+        case .visible: 70
         }
-        let leftPadding = max(windowButtonsPadding, worktrunkSidebarWidth)
 
         // Constrain the accessory clip view (the parent of the accessory view
         // usually that clips the children) to the container view.
@@ -223,10 +178,8 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         accessoryView.translatesAutoresizingMaskIntoConstraints = false
 
         // Setup all our constraints
-        tabBarLeftConstraint = clipView.leftAnchor.constraint(equalTo: container.leftAnchor, constant: leftPadding)
-        if let tabBarLeftConstraint {
-            NSLayoutConstraint.activate([
-                tabBarLeftConstraint,
+        NSLayoutConstraint.activate([
+            clipView.leftAnchor.constraint(equalTo: container.leftAnchor, constant: leftPadding),
             clipView.rightAnchor.constraint(equalTo: container.rightAnchor),
             clipView.topAnchor.constraint(equalTo: container.topAnchor, constant: 2),
             clipView.heightAnchor.constraint(equalTo: container.heightAnchor),
@@ -234,8 +187,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             accessoryView.rightAnchor.constraint(equalTo: clipView.rightAnchor),
             accessoryView.topAnchor.constraint(equalTo: clipView.topAnchor),
             accessoryView.heightAnchor.constraint(equalTo: clipView.heightAnchor),
-            ])
-        }
+        ])
 
         clipView.needsLayout = true
         accessoryView.needsLayout = true
@@ -273,42 +225,14 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         self.tabBarObserver = nil
     }
 
-    func updateWorktrunkSidebarWidth(_ width: CGFloat) {
-        worktrunkSidebarWidth = max(0, width)
-
-        let windowButtonsPadding: CGFloat = switch self.derivedConfig.macosWindowButtons {
-        case .hidden: 0
-        case .visible: windowControlButtonsWidth
-        }
-        let tabBarView = self.tabBarView
-        let originalPostsFrameChangedNotifications = tabBarView?.postsFrameChangedNotifications ?? false
-        tabBarView?.postsFrameChangedNotifications = false
-        defer { tabBarView?.postsFrameChangedNotifications = originalPostsFrameChangedNotifications }
-        tabBarLeftConstraint?.constant = max(windowButtonsPadding, worktrunkSidebarWidth)
-    }
-
     // MARK: NSToolbarDelegate
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [
-            .toggleSidebar,
-            .sidebarTrackingSeparator,
-            .title,
-            .flexibleSpace,
-            .space,
-            .openInEditor,
-        ]
+        return [.title, .flexibleSpace, .space]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [
-            .toggleSidebar,
-            .sidebarTrackingSeparator,
-            .flexibleSpace,
-            .title,
-            .flexibleSpace,
-            .openInEditor,
-        ]
+        return [.flexibleSpace, .title, .flexibleSpace]
     }
 
     func toolbar(_ toolbar: NSToolbar,
@@ -317,64 +241,30 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         switch itemIdentifier {
         case .title:
             let item = NSToolbarItem(itemIdentifier: .title)
-            item.view = NSHostingView(rootView: TitleItem(viewModel: viewModel))
+            item.view = ClickThroughHostingView(rootView: TitleItem(viewModel: viewModel))
             // Fix: https://github.com/ghostty-org/ghostty/discussions/9027
             item.view?.setContentCompressionResistancePriority(.required, for: .horizontal)
             item.visibilityPriority = .user
-            item.isEnabled = true
+            item.isEnabled = false
 
             // This is the documented way to avoid the glass view on an item.
             // We don't want glass on our title.
             item.isBordered = false
 
             return item
-        case .toggleSidebar:
-            let item = NSToolbarItem(itemIdentifier: .toggleSidebar)
-            let button = NSButton(frame: NSRect(x: 0, y: 0, width: 38, height: 22))
-            button.bezelStyle = .toolbar
-            button.image = NSImage(systemSymbolName: "sidebar.left", accessibilityDescription: "Toggle Sidebar")
-            button.imagePosition = .imageOnly
-            button.target = windowController as? TerminalController
-            button.action = #selector(TerminalController.toggleSidebar(_:))
-            item.view = button
-            item.label = "Toggle Sidebar"
-            item.isNavigational = true
-            return item
-        case .openInEditor:
-            return makeOpenInEditorItem()
         default:
             return NSToolbarItem(itemIdentifier: itemIdentifier)
         }
-    }
-
-    private func makeOpenInEditorItem() -> NSToolbarItem? {
-        let installed = ExternalEditor.installedEditors()
-        guard !installed.isEmpty else { return nil }
-
-        let controller = windowController as? TerminalController
-
-        let item = NSToolbarItem(itemIdentifier: .openInEditor)
-        item.label = "Open in Editor"
-        item.toolTip = "Open in Editor"
-
-        let segmented = EditorSplitButton.make(
-            editors: installed,
-            target: controller
-        )
-
-        item.view = segmented
-        return item
     }
 
     // MARK: SwiftUI
 
     class ViewModel: ObservableObject {
         @Published var titleFont: NSFont?
-        @Published var title: String = "👻 Ghostree"
+        @Published var title: String = "👻 Ghostty"
         @Published var hasTabBar: Bool = false
         @Published var isMainWindow: Bool = true
     }
-
 }
 
 extension NSToolbarItem.Identifier {
@@ -416,5 +306,12 @@ extension TitlebarTabsTahoeTerminalWindow {
                 .frame(maxWidth: .greatestFiniteMagnitude, alignment: .center)
                 .opacity(viewModel.hasTabBar ? 0 : 1) // hide when in fullscreen mode, where title bar will appear in the leading area under window buttons
         }
+    }
+}
+
+/// A "Ghosting" Hosting View, that acts like it's not there
+private class ClickThroughHostingView<Content: View>: NSHostingView<Content> {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
     }
 }

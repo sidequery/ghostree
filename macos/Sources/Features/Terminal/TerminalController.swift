@@ -223,6 +223,8 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
     private let tabSwitchRefreshThrottle: TimeInterval = 0.15
     private var pendingTabSwitchRefresh: DispatchWorkItem?
     private var lastTabSwitchSurfaceID: UUID?
+    private var repoPromptRefreshTask: Task<Void, Never>?
+    private(set) var repoPromptResolution: TerminalRepoPromptResolution = .disabled(.noFocusedTerminal)
 
     private(set) var worktreeTabRootPath: String? {
         didSet { syncWorktreeTabTitle() }
@@ -1545,10 +1547,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         syncAppearance(.init(config))
 
         openTabsModel.refresh(for: window)
+        refreshRepoPromptResolution()
     }
 
     private func installWorktrunkSidebarSync() {
         guard worktrunkSidebarSyncCancellables.isEmpty else { return }
+        let worktrunkStore = (NSApp.delegate as? AppDelegate)?.worktrunkStore
 
         worktrunkSidebarState.$columnVisibility
             .removeDuplicates()
@@ -1580,6 +1584,13 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             .removeDuplicates()
             .sink { [weak self] selection in
                 self?.syncWorktrunkSidebarSelectionToTabGroup(selection)
+            }
+            .store(in: &worktrunkSidebarSyncCancellables)
+
+        worktrunkStore?.objectWillChange
+            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.refreshRepoPromptResolution()
             }
             .store(in: &worktrunkSidebarSyncCancellables)
     }
@@ -1954,6 +1965,97 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
         }
     }
 
+    func refreshRepoPromptResolution() {
+        repoPromptRefreshTask?.cancel()
+        repoPromptRefreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let worktrunkStore = (NSApp.delegate as? AppDelegate)?.worktrunkStore
+            let resolution = await TerminalRepoPrompt.resolve(
+                pwd: self.focusedSurface?.pwd,
+                worktrunkStore: worktrunkStore
+            )
+            guard !Task.isCancelled else { return }
+            self.repoPromptResolution = resolution
+            self.refreshRepoPromptToolbarItems()
+        }
+    }
+
+    private func refreshRepoPromptToolbarItems() {
+        guard let toolbar = window?.toolbar else { return }
+        for item in toolbar.items {
+            guard item.itemIdentifier == .repoPrompt,
+                  let segmented = item.view as? NSSegmentedControl else { continue }
+            RepoPromptSplitButton.update(segmented, resolution: repoPromptResolution)
+        }
+    }
+
+    func insertRepoPrompt(_ requestedAction: TerminalRepoPromptAction) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let worktrunkStore = (NSApp.delegate as? AppDelegate)?.worktrunkStore
+            let resolution = await TerminalRepoPrompt.resolve(
+                pwd: self.focusedSurface?.pwd,
+                worktrunkStore: worktrunkStore
+            )
+            self.repoPromptResolution = resolution
+            self.refreshRepoPromptToolbarItems()
+
+            guard case .ready(let readyState) = resolution else { return }
+            guard let surface = self.focusedSurface?.surfaceModel else { return }
+
+            let action = requestedAction == .smart ? readyState.primaryAction : requestedAction
+            guard readyState.supports(action) else { return }
+            surface.sendText(TerminalRepoPrompt.prompt(for: action, readyState: readyState))
+        }
+    }
+
+    @objc func repoPromptToolbarAction(_ sender: Any?) {
+        if let segmented = sender as? NSSegmentedControl, segmented.selectedSegment == 1 {
+            if let menu = segmented.menu(forSegment: 1) {
+                let screenRect = segmented.window?.convertToScreen(
+                    segmented.convert(segmented.bounds, to: nil)
+                ) ?? .zero
+                let origin = NSPoint(x: screenRect.minX, y: screenRect.minY)
+                menu.popUp(positioning: nil, at: origin, in: nil)
+            }
+            return
+        }
+
+        insertRepoPrompt(.smart)
+    }
+
+    @objc func insertSmartRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.smart)
+    }
+
+    @objc func insertCommitRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.commit)
+    }
+
+    @objc func insertCommitAndPushRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.commitAndPush)
+    }
+
+    @objc func insertOpenPRRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.openPR)
+    }
+
+    @objc func insertPushRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.push)
+    }
+
+    @objc func insertPushAndOpenPRRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.pushAndOpenPR)
+    }
+
+    @objc func insertPushAndUpdatePRRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.pushAndUpdatePR)
+    }
+
+    @objc func insertUpdatePRRepoPrompt(_ sender: Any?) {
+        insertRepoPrompt(.updatePR)
+    }
+
     private func currentEditorPath() -> String? {
         // Prefer selected worktree path from sidebar, fall back to focused surface pwd
         switch worktrunkSidebarState.selection {
@@ -2293,10 +2395,12 @@ class TerminalController: BaseTerminalController, TabGroupCloseCoordinator.Contr
             .sink { [weak self, weak focusedSurface] _ in self?.syncAppearanceOnPropertyChange(focusedSurface) }
             .store(in: &surfaceAppearanceCancellables)
 
+        refreshRepoPromptResolution()
     }
 
     override func pwdDidChange(to: URL?) {
         super.pwdDidChange(to: to)
+        refreshRepoPromptResolution()
         if #available(macOS 26.0, *) {
             guard let to else { return }
             Task { @MainActor in

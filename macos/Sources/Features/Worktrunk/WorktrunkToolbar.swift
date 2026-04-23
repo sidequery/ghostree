@@ -46,11 +46,11 @@ final class WorktrunkToolbar: NSToolbar, NSToolbarDelegate {
     }
 
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace, .openInEditor]
+        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace, .openInEditor, .repoPrompt]
     }
 
     func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace, .openInEditor]
+        [.toggleSidebar, .sidebarTrackingSeparator, .worktrunkTitleText, .flexibleSpace, .openInEditor, .repoPrompt]
     }
 
     func toolbar(
@@ -86,6 +86,8 @@ final class WorktrunkToolbar: NSToolbar, NSToolbarDelegate {
             return item
         case .openInEditor:
             return makeOpenInEditorItem()
+        case .repoPrompt:
+            return makeRepoPromptItem()
         default:
             return NSToolbarItem(itemIdentifier: itemIdentifier)
         }
@@ -108,6 +110,14 @@ final class WorktrunkToolbar: NSToolbar, NSToolbarDelegate {
         return item
     }
 
+    private func makeRepoPromptItem() -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: .repoPrompt)
+        item.label = "Repo Action"
+        item.toolTip = "Type the next repo prompt into the current AI session"
+        item.view = RepoPromptSplitButton.make(target: targetController)
+        return item
+    }
+
     private func updateTitleAttributes() {
         let text = titleTextField.stringValue.isEmpty ? " " : titleTextField.stringValue
         let baseFont = titleFont ?? NSFont.titleBarFont(ofSize: NSFont.systemFontSize)
@@ -122,6 +132,7 @@ final class WorktrunkToolbar: NSToolbar, NSToolbarDelegate {
 extension NSToolbarItem.Identifier {
     static let worktrunkTitleText = NSToolbarItem.Identifier("WorktrunkTitleText")
     static let openInEditor = NSToolbarItem.Identifier("OpenInEditor")
+    static let repoPrompt = NSToolbarItem.Identifier("RepoPrompt")
 }
 
 /// A split button for the "Open in Editor" toolbar item.

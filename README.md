@@ -1,4 +1,6 @@
-# Attention: Ghostree is not maintained, I no longer it day to day & am looking for a maintainer.
+# Attention: Ghostree is not maintained
+
+I no longer it day to day & am looking for a maintainer. Please reach out if you're interested.
 
 <!-- LOGO -->
 <h1>

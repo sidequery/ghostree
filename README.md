@@ -1,3 +1,5 @@
+# Attention: Ghostree is not maintained, I no longer it day to day & am looking for a maintainer.
+
 <!-- LOGO -->
 <h1>
 <p align="center">

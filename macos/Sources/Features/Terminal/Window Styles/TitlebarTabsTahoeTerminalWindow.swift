@@ -297,6 +297,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             .flexibleSpace,
             .space,
             .openInEditor,
+            .repoPrompt,
         ]
     }
 
@@ -308,6 +309,7 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             .title,
             .flexibleSpace,
             .openInEditor,
+            .repoPrompt,
         ]
     }
 
@@ -342,6 +344,8 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
             return item
         case .openInEditor:
             return makeOpenInEditorItem()
+        case .repoPrompt:
+            return makeRepoPromptItem()
         default:
             return NSToolbarItem(itemIdentifier: itemIdentifier)
         }
@@ -363,6 +367,15 @@ class TitlebarTabsTahoeTerminalWindow: TransparentTitlebarTerminalWindow, NSTool
         )
 
         item.view = segmented
+        return item
+    }
+
+    private func makeRepoPromptItem() -> NSToolbarItem {
+        let controller = windowController as? TerminalController
+        let item = NSToolbarItem(itemIdentifier: .repoPrompt)
+        item.label = "Repo Action"
+        item.toolTip = "Type the next repo prompt into the current AI session"
+        item.view = RepoPromptSplitButton.make(target: controller)
         return item
     }
 

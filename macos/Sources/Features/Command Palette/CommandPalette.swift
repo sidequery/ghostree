@@ -25,6 +25,8 @@ struct CommandOption: Identifiable, Hashable {
     let dismissOnSelect: Bool
     /// If true, this option is always visible even when the query doesn't match.
     let pinned: Bool
+    /// If false, this option is visible but cannot be executed.
+    let isEnabled: Bool
     /// The action to perform when this option is selected.
     let action: () -> Void
 
@@ -40,6 +42,7 @@ struct CommandOption: Identifiable, Hashable {
         sortKey: AnySortKey? = nil,
         dismissOnSelect: Bool = true,
         pinned: Bool = false,
+        isEnabled: Bool = true,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -53,6 +56,7 @@ struct CommandOption: Identifiable, Hashable {
         self.sortKey = sortKey
         self.dismissOnSelect = dismissOnSelect
         self.pinned = pinned
+        self.isEnabled = isEnabled
         self.action = action
     }
 
@@ -128,6 +132,7 @@ struct CommandPaletteView: View {
                         isPresented = false
                         break
                     }
+                    guard selectedOption.isEnabled else { break }
                     if selectedOption.dismissOnSelect {
                         isPresented = false
                     }
@@ -173,6 +178,7 @@ struct CommandPaletteView: View {
                 options: filteredOptions,
                 selectedIndex: $selectedIndex,
                 hoveredOptionID: $hoveredOptionID) { option in
+                    guard option.isEnabled else { return }
                     if option.dismissOnSelect {
                         isPresented = false
                     }
@@ -370,13 +376,16 @@ private struct CommandRow: View {
 
                 if let icon = option.leadingIcon {
                     Image(systemName: icon)
-                        .foregroundStyle(option.emphasis ? Color.accentColor : .secondary)
+                        .foregroundStyle(option.isEnabled
+                            ? (option.emphasis ? Color.accentColor : Color.secondary)
+                            : Color.secondary.opacity(0.6))
                         .font(.system(size: 14, weight: .medium))
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(option.title)
                         .fontWeight(option.emphasis ? .medium : .regular)
+                        .foregroundStyle(option.isEnabled ? Color.primary : Color.secondary)
 
                     if let subtitle = option.subtitle {
                         Text(subtitle)
@@ -406,7 +415,7 @@ private struct CommandRow: View {
             .padding(8)
             .contentShape(Rectangle())
             .background(
-                isSelected
+                isSelected && option.isEnabled
                     ? Color.accentColor.opacity(0.2)
                     : (hoveredID == option.id
                        ? Color.secondary.opacity(0.2)
@@ -420,6 +429,8 @@ private struct CommandRow: View {
         }
         .help(option.description ?? "")
         .buttonStyle(.plain)
+        .disabled(!option.isEnabled)
+        .opacity(option.isEnabled ? 1 : 0.7)
         .onHover { hovering in
             hoveredID = hovering ? option.id : nil
         }

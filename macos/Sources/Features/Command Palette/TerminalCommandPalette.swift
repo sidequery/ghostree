@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import GhosttyKit
 
 struct TerminalCommandPaletteView: View {
@@ -27,6 +28,7 @@ struct TerminalCommandPaletteView: View {
     }
 
     @State private var worktrunkMode: WorktrunkPaletteMode = .root
+    @State private var repoPromptResolution: TerminalRepoPromptResolution = .disabled(.noFocusedTerminal)
 
     var body: some View {
         ZStack {
@@ -66,7 +68,13 @@ struct TerminalCommandPaletteView: View {
                 DispatchQueue.main.async {
                     surfaceView.window?.makeFirstResponder(surfaceView)
                 }
+            } else {
+                refreshRepoPromptResolution()
             }
+        }
+        .onReceive(worktrunkStoreChangePublisher) { _ in
+            guard isPresented else { return }
+            refreshRepoPromptResolution()
         }
     }
 
@@ -77,6 +85,7 @@ struct TerminalCommandPaletteView: View {
             var options: [CommandOption] = []
             // Updates always appear first
             options.append(contentsOf: updateOptions)
+            options.append(contentsOf: githubOptions)
 
             let rest = (worktrunkRootOptions + jumpOptions + terminalOptions).sorted { a, b in
                 let aNormalized = a.title.replacingOccurrences(of: ":", with: "\t")
@@ -204,6 +213,60 @@ struct TerminalCommandPaletteView: View {
         (NSApp.delegate as? AppDelegate)?.worktrunkStore
     }
 
+    private var worktrunkStoreChangePublisher: AnyPublisher<Void, Never> {
+        guard let worktrunkStore else {
+            return Empty<Void, Never>().eraseToAnyPublisher()
+        }
+
+        return worktrunkStore.objectWillChange
+            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
+            .map { _ in () }
+            .eraseToAnyPublisher()
+    }
+
+    private var githubOptions: [CommandOption] {
+        switch repoPromptResolution {
+        case .disabled(let reason):
+            return TerminalRepoPromptAction.menuActions.map { action in
+                CommandOption(
+                    title: action.paletteTitle,
+                    description: reason.description,
+                    leadingIcon: "arrow.trianglehead.branch",
+                    dismissOnSelect: false,
+                    isEnabled: false
+                ) {}
+            }
+
+        case .ready(let readyState):
+            var options: [CommandOption] = []
+
+            if let shortcut = readyState.shortcutAction {
+                options.append(CommandOption(
+                    title: shortcut.action.paletteTitle,
+                    description: shortcut.description,
+                    leadingIcon: "arrow.trianglehead.branch"
+                ) {
+                    terminalController?.insertRepoPrompt(shortcut.action)
+                })
+            }
+
+            options.append(contentsOf: readyState.actionStates.map { state in
+                CommandOption(
+                    title: state.action.paletteTitle,
+                    description: state.description,
+                    leadingIcon: "arrow.trianglehead.branch",
+                    emphasis: state.action == readyState.primaryAction,
+                    dismissOnSelect: state.isAvailable,
+                    isEnabled: state.isAvailable
+                ) {
+                    terminalController?.insertRepoPrompt(state.action)
+                }
+            })
+
+            return options
+        }
+    }
+
     private var worktrunkRootOptions: [CommandOption] {
         guard terminalController != nil, worktrunkStore != nil else { return [] }
 
@@ -217,6 +280,21 @@ struct TerminalCommandPaletteView: View {
         }
 
         return [newWorktree]
+    }
+
+    private func refreshRepoPromptResolution() {
+        guard let terminalController else {
+            repoPromptResolution = .disabled(.noFocusedTerminal)
+            return
+        }
+
+        Task { @MainActor in
+            let resolution = await TerminalRepoPrompt.resolve(
+                pwd: terminalController.focusedSurface?.pwd,
+                worktrunkStore: worktrunkStore
+            )
+            repoPromptResolution = resolution
+        }
     }
 
     private var worktrunkPickRepoOptions: [CommandOption] {
